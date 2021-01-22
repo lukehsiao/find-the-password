@@ -81,7 +81,7 @@ fn main() {
     eligible.insert("alex");
     eligible.insert("brian");
     eligible.insert("dean");
-    eligible.insert("leo");
+    eligible.insert("lio");
     eligible.insert("lily");
     eligible.insert("lise");
     eligible.insert("luke");
