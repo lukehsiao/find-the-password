@@ -18,7 +18,7 @@ struct HitCount {
 
 const PASS: &str = "ee21c52cba80a3b9bb1e237c3c84166f";
 
-#[get("/<name>/<pass>")]
+#[get("/01/<name>/<pass>")]
 fn check(name: String, pass: String, count: State<HitCount>) -> String {
     count.total_hits.fetch_add(1, Ordering::Relaxed);
     *count.hits.lock().unwrap().entry(name.clone()).or_insert(0) += 1;
