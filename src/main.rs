@@ -6,7 +6,9 @@ use std::collections::{HashMap, HashSet};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Mutex;
 
+use data_encoding::HEXLOWER;
 use rocket::State;
+use sha2::{Digest, Sha224};
 
 #[derive(Debug)]
 struct HitCount {
@@ -29,13 +31,20 @@ fn check(name: String, pass: String, count: State<HitCount>) -> String {
     if eligible.contains(name.as_str()) {
         if pass.as_str() == PASS {
             count.success_count.fetch_add(1, Ordering::Relaxed);
+            let success_count = count.success_count.load(Ordering::Relaxed);
             eligible.remove(name.as_str());
+
+            let mut hasher = Sha224::new();
+            hasher.update(dbg!(format!("{}_{}\n", name, success_count)));
+            let result = hasher.finalize();
+
             format!(
-                "{}, you solved it!\n{} was correct!\nYou got {} place after {} attempts!",
+                "{}, you solved it!\n{} was correct!\nYou got {} place after {} attempts!\nSend this code to Luke to redeem your prize: {}",
                 name,
                 pass,
                 count.success_count.load(Ordering::Relaxed),
                 attempts,
+                HEXLOWER.encode(&result[..]),
             )
         } else {
             format!(
@@ -68,6 +77,7 @@ fn main() {
     eligible.insert("lise");
     eligible.insert("luke");
     eligible.insert("myriam");
+    eligible.insert("sunny");
     eligible.insert("timmy");
 
     rocket::ignite()
