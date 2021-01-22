@@ -6,6 +6,7 @@ use std::collections::{HashMap, HashSet};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Mutex;
 
+use chrono::Utc;
 use data_encoding::HEXLOWER;
 use rocket::State;
 use sha2::{Digest, Sha224};
@@ -35,8 +36,15 @@ fn check(name: String, pass: String, count: State<HitCount>) -> String {
             eligible.remove(name.as_str());
 
             let mut hasher = Sha224::new();
-            hasher.update(dbg!(format!("{}_{}\n", name, success_count)));
+            hasher.update(format!("{}_{}\n", name, success_count));
             let result = hasher.finalize();
+
+            eprintln!(
+                "[SUCCESS] {} got {} place at {}",
+                name,
+                success_count,
+                Utc::now().to_rfc3339()
+            );
 
             format!(
                 "{}, you solved it!\n{} was correct!\nYou got {} place after {} attempts!\nSend this code to Luke to redeem your prize: {}",
