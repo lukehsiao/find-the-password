@@ -1,0 +1,4 @@
+[global]
+port = 8000
+workers = 4
+keep_alive = 10
