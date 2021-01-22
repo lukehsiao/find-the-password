@@ -9,6 +9,7 @@ use std::sync::Mutex;
 use chrono::Utc;
 use data_encoding::HEXLOWER;
 use rocket::State;
+use rocket_contrib::serve::StaticFiles;
 use sha2::{Digest, Sha224};
 
 #[derive(Debug)]
@@ -47,7 +48,7 @@ fn check(name: String, pass: String, count: State<HitCount>) -> String {
             );
 
             format!(
-                "{}, you solved it!\n{} was correct!\nYou got {} place after {} attempts!\nSend this code to Luke to redeem your prize: {}",
+                "Yes\n\n{}, you solved it!\n{} was correct!\nYou got {} place after {} attempts!\nSend this code to Luke to redeem your prize: {}",
                 name,
                 pass,
                 count.success_count.load(Ordering::Relaxed),
@@ -56,7 +57,7 @@ fn check(name: String, pass: String, count: State<HitCount>) -> String {
             )
         } else {
             format!(
-                "Hello, {}!\n{} is incorrect.\nYou've tried {} times.",
+                "No\n\nHello, {}!\n{} is incorrect.\nYou've tried {} times.",
                 name.as_str(),
                 pass.as_str(),
                 attempts,
@@ -64,7 +65,7 @@ fn check(name: String, pass: String, count: State<HitCount>) -> String {
         }
     } else {
         format!(
-            "{}, you've already solved this challenge! Let Luke know!",
+            "{}, you're not eligible to try this challenge.\nDid you already solve it?\nAre you using the right name?",
             name
         )
     }
@@ -72,7 +73,7 @@ fn check(name: String, pass: String, count: State<HitCount>) -> String {
 
 #[get("/")]
 fn index() -> &'static str {
-    "Use challenge.hsiao.dev/<name>/<pass>"
+    "Use challenge.hsiao.dev/01/<name>/<pass>"
 }
 
 fn main() {
@@ -96,5 +97,6 @@ fn main() {
             success_count: AtomicUsize::new(0),
         })
         .mount("/", routes![index, check])
+        .mount("/", StaticFiles::from("data/passwords.txt"))
         .launch();
 }
