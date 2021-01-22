@@ -97,6 +97,6 @@ fn main() {
             success_count: AtomicUsize::new(0),
         })
         .mount("/", routes![index, check])
-        .mount("/", StaticFiles::from("data/passwords.txt"))
+        .mount("/", StaticFiles::from("data/"))
         .launch();
 }
