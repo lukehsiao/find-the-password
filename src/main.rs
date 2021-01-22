@@ -48,7 +48,7 @@ fn check(name: String, pass: String, count: State<HitCount>) -> String {
             );
 
             format!(
-                "Yes\n\n{}, you solved it!\n{} was correct!\nYou got {} place after {} attempts!\nSend this code to Luke to redeem your prize: {}",
+                "Yes\n\n{}, you solved it!\n{} was correct!\nYou got {} place after {} attempts!\nSend this code to Luke to redeem your prize: {}\n",
                 name,
                 pass,
                 count.success_count.load(Ordering::Relaxed),
@@ -57,7 +57,7 @@ fn check(name: String, pass: String, count: State<HitCount>) -> String {
             )
         } else {
             format!(
-                "No\n\nHello, {}!\n{} is incorrect.\nYou've tried {} times.",
+                "No\n\nHello, {}!\n{} is incorrect.\nYou've tried {} times.\n",
                 name.as_str(),
                 pass.as_str(),
                 attempts,
@@ -65,7 +65,7 @@ fn check(name: String, pass: String, count: State<HitCount>) -> String {
         }
     } else {
         format!(
-            "{}, you're not eligible to try this challenge.\nDid you already solve it?\nAre you using the right name?",
+            "{}, you're not eligible to try this challenge.\nDid you already solve it?\nAre you using the right name?\n",
             name
         )
     }
