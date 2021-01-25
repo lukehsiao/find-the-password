@@ -10,7 +10,6 @@ use chrono::Utc;
 use data_encoding::HEXLOWER;
 use rocket::State;
 use rocket_contrib::serve::StaticFiles;
-use sha2::{Digest, Sha224};
 
 #[derive(Debug)]
 struct HitCount {
@@ -22,7 +21,7 @@ struct HitCount {
 
 const PASS: &str = "ee21c52cba80a3b9bb1e237c3c84166f";
 
-#[get("/status/<name>")]
+#[get("/01/status/<name>")]
 fn status(name: String, count: State<HitCount>) -> String {
     if let Some(attempts) = count.hits.lock().unwrap().get(&name) {
         format!("{} has made {} attempts.", name, attempts)
@@ -47,10 +46,6 @@ fn check(name: String, pass: String, count: State<HitCount>) -> String {
             }
             let success_count = count.success_count.load(Ordering::Relaxed);
 
-            let mut hasher = Sha224::new();
-            hasher.update(format!("{}_{}\n", name, success_count));
-            let result = hasher.finalize();
-
             eprintln!(
                 "[SUCCESS] {} got {} place at {}",
                 name,
@@ -59,12 +54,11 @@ fn check(name: String, pass: String, count: State<HitCount>) -> String {
             );
 
             format!(
-                "Yes\n\n{}, you solved it!\n{} was correct!\nYou got {} place after {} attempts!\nSend this code to Luke to redeem your prize: {}\n",
+                "Yes\n\n{}, you solved it!\n{} was correct!\nYou got {} place after {} attempts!\n",
                 name,
                 pass,
                 count.success_count.load(Ordering::Relaxed),
                 attempts,
-                HEXLOWER.encode(&result[..]),
             )
         } else {
             format!(
