@@ -22,6 +22,15 @@ struct HitCount {
 
 const PASS: &str = "ee21c52cba80a3b9bb1e237c3c84166f";
 
+#[get("/status/<name>")]
+fn status(name: String, count: State<HitCount>) -> String {
+    if let Some(attempts) = count.hits.lock().unwrap().get(&name) {
+        format!("{} has made {} attempts.", name, attempts)
+    } else {
+        format!("Invalid name: {}", name)
+    }
+}
+
 #[get("/01/<name>/<pass>")]
 fn check(name: String, pass: String, count: State<HitCount>) -> String {
     count.total_hits.fetch_add(1, Ordering::Relaxed);
@@ -98,7 +107,7 @@ fn main() {
             eligible: Mutex::new(eligible),
             success_count: AtomicUsize::new(0),
         })
-        .mount("/", routes![index, check])
+        .mount("/", routes![index, status, check])
         .mount("/", StaticFiles::from("data/"))
         .launch();
 }
