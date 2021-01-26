@@ -253,6 +253,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "find-password"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "data-encoding",
+ "rocket",
+ "rocket_contrib",
+]
+
+[[package]]
 name = "fsevent"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -355,16 +365,6 @@ checksum = "5dcb5e64cda4c23119ab41ba960d1e170a774c8e4b9d9e6a9bc18aabf5e59695"
 dependencies = [
  "crypto-mac",
  "digest",
-]
-
-[[package]]
-name = "hsiao-challenge"
-version = "0.1.0"
-dependencies = [
- "chrono",
- "data-encoding",
- "rocket",
- "rocket_contrib",
 ]
 
 [[package]]
@@ -910,9 +910,9 @@ dependencies = [
 
 [[package]]
 name = "tinyvec"
-version = "1.1.0"
+version = "1.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ccf8dbc19eb42fba10e8feaaec282fb50e2c14b2726d6301dbfeed0f73306a6f"
+checksum = "317cca572a0e89c3ce0ca1f1bdc9369547fe318a683418e42ac8f59d14701023"
 dependencies = [
  "tinyvec_macros",
 ]

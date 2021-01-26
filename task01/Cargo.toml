@@ -1,5 +1,5 @@
 [package]
-name = "hsiao-challenge"
+name = "find-password"
 version = "0.1.0"
 authors = ["Luke Hsiao <luke@hsiao.dev>"]
 edition = "2018"
