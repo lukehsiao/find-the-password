@@ -7,7 +7,6 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Mutex;
 
 use chrono::Utc;
-use data_encoding::HEXLOWER;
 use rocket::State;
 use rocket_contrib::serve::StaticFiles;
 
@@ -16,12 +15,13 @@ struct HitCount {
     total_hits: AtomicUsize,
     hits: Mutex<HashMap<String, usize>>,
     eligible: Mutex<HashSet<&'static str>>,
+    solved: Mutex<HashSet<String>>,
     success_count: AtomicUsize,
 }
 
 const PASS: &str = "ee21c52cba80a3b9bb1e237c3c84166f";
 
-#[get("/01/status/<name>")]
+#[get("/status/<name>")]
 fn status(name: String, count: State<HitCount>) -> String {
     if let Some(attempts) = count.hits.lock().unwrap().get(&name) {
         format!("{} has made {} attempts.", name, attempts)
@@ -32,45 +32,37 @@ fn status(name: String, count: State<HitCount>) -> String {
 
 #[get("/01/<name>/<pass>")]
 fn check(name: String, pass: String, count: State<HitCount>) -> String {
-    count.total_hits.fetch_add(1, Ordering::Relaxed);
-    *count.hits.lock().unwrap().entry(name.clone()).or_insert(0) += 1;
-    let attempts = count.hits.lock().unwrap().get(&name).unwrap().clone();
-
-    let mut eligible = count.eligible.lock().unwrap();
+    if !count.solved.lock().unwrap().contains(&name) {
+        count.total_hits.fetch_add(1, Ordering::Relaxed);
+        *count.hits.lock().unwrap().entry(name.clone()).or_insert(0) += 1;
+    }
+    let eligible = count.eligible.lock().unwrap();
 
     if eligible.contains(name.as_str()) {
         if pass.as_str() == PASS {
-            if name.as_str() != "luke" && name.as_str() != "sunny" {
+            if !count.solved.lock().unwrap().contains(&name) {
                 count.success_count.fetch_add(1, Ordering::Relaxed);
-                eligible.remove(name.as_str());
+                count.solved.lock().unwrap().insert(name.to_string());
+
+                let success_count = count.success_count.load(Ordering::Relaxed);
+                let attempts = count.hits.lock().unwrap().get(&name).unwrap().clone();
+
+                eprintln!(
+                    "[SUCCESS] {} got {} place with {} attempts at {}",
+                    name,
+                    success_count,
+                    attempts,
+                    Utc::now().to_rfc3339()
+                );
             }
-            let success_count = count.success_count.load(Ordering::Relaxed);
 
-            eprintln!(
-                "[SUCCESS] {} got {} place at {}",
-                name,
-                success_count,
-                Utc::now().to_rfc3339()
-            );
-
-            format!(
-                "Yes\n\n{}, you solved it!\n{} was correct!\nYou got {} place after {} attempts!\n",
-                name,
-                pass,
-                count.success_count.load(Ordering::Relaxed),
-                attempts,
-            )
+            format!("Yes\n")
         } else {
-            format!(
-                "No\n\nHello, {}!\n{} is incorrect.\nYou've tried {} times.\n",
-                name.as_str(),
-                pass.as_str(),
-                attempts,
-            )
+            format!("No\n")
         }
     } else {
         format!(
-            "{}, you're not eligible to try this challenge.\nDid you already solve it?\nAre you using the right name?\n",
+            "{}, you're not eligible to try this challenge.\nAre you using the right name?\n",
             name
         )
     }
@@ -94,11 +86,16 @@ fn main() {
     eligible.insert("sunny");
     eligible.insert("timmy");
 
+    let mut solved = HashSet::new();
+    solved.insert("luke".to_string());
+    solved.insert("sunny".to_string());
+
     rocket::ignite()
         .manage(HitCount {
             total_hits: AtomicUsize::new(0),
             hits: Mutex::new(HashMap::new()),
             eligible: Mutex::new(eligible),
+            solved: Mutex::new(solved),
             success_count: AtomicUsize::new(0),
         })
         .mount("/", routes![index, status, check])

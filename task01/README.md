@@ -30,15 +30,13 @@ And I’d see the response:
 
     No
 
-    Hello, luke! testpass is incorrect. You've tried 1 times.
-
-If I get the right password, I’d see something like:
+If I get the right password, I’d see:
 
     Yes
 
-    luke, you solved it!
-    testpass was correct!
-    You got 1 place after 2518 attempts!
+You can check your attempts by visiting
+
+    https://challenge.hsiao.dev/status/<name>
 
 ## Rules
 
