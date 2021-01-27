@@ -48,7 +48,9 @@ You can check your attempts by visiting
 - I will update this email thread as prizes are claimed!
 
 ## Some solutions
+
 Brute force is the only answer.
+
 - Ideally, this is a trivial for loop over the passwords and making a web requests, checking for
   "Yes" in the response.
 - Turns out you can also use a spreadsheet, leveraging something like `=WEBSERVICE` to make the web
@@ -57,8 +59,15 @@ Brute force is the only answer.
   multiple tab opener and literally open hundreds of Chrome tabs, closing them quickly as they kept
   their eyes trained on where "No" and "Yes" were displayed.
 
-*This challenge was inspired by Marc Scott's blog post: [Kids can't use computers... and this is why
-it should worry you](http://www.coding2learn.org/blog/2013/07/29/kids-cant-use-computers/).*
+## Running the Parallelized Rust Example Solution
+
+```
+$ cargo run --release --example=solution -- < data/passwords.txt
+```
+
+_This challenge was inspired by Marc Scott's blog post: [Kids can't use computers... and this is why
+it should worry you](http://www.coding2learn.org/blog/2013/07/29/kids-cant-use-computers/)._
+
 > When we teach kids to ride a bike, at some point we have to take the training wheels off. Here's
 > an idea. When they hit eleven, give them a plaintext file with ten-thousand WPA2 keys and tell
 > them that the real one is in there somewhere. See how quickly they discover Python or Bash then.

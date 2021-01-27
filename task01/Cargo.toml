@@ -3,6 +3,7 @@ name = "find-password"
 version = "0.1.0"
 authors = ["Luke Hsiao <luke@hsiao.dev>"]
 edition = "2018"
+publish = false
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -11,3 +12,8 @@ chrono = "0.4.19"
 data-encoding = "2.3.1"
 rocket = "0.4.6"
 rocket_contrib = "0.4.6"
+
+[dev-dependencies]
+anyhow = "1.0.38"
+rayon = "1.5.0"
+ureq = "2.0.1"
