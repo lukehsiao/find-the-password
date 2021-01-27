@@ -1,13 +1,11 @@
 #![feature(proc_macro_hygiene, decl_macro)]
-#[macro_use]
-extern crate rocket;
 
 use std::collections::{HashMap, HashSet};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Mutex;
 
 use chrono::Utc;
-use rocket::State;
+use rocket::{get, routes, State};
 use rocket_contrib::serve::StaticFiles;
 
 #[derive(Debug)]
@@ -21,6 +19,14 @@ struct HitCount {
 
 const PASS: &str = "ee21c52cba80a3b9bb1e237c3c84166f";
 
+#[get("/total")]
+fn total(count: State<HitCount>) -> String {
+    format!(
+        "Total hits: {}",
+        count.total_hits.load(Ordering::Relaxed).to_string()
+    )
+}
+
 #[get("/status/<name>")]
 fn status(name: String, count: State<HitCount>) -> String {
     if let Some(attempts) = count.hits.lock().unwrap().get(&name) {
@@ -32,20 +38,23 @@ fn status(name: String, count: State<HitCount>) -> String {
 
 #[get("/01/<name>/<pass>")]
 fn check(name: String, pass: String, count: State<HitCount>) -> String {
+    count.total_hits.fetch_add(1, Ordering::Relaxed);
+
+    // Stop tracking attempts after it has been solved.
     if !count.solved.lock().unwrap().contains(&name) {
-        count.total_hits.fetch_add(1, Ordering::Relaxed);
         *count.hits.lock().unwrap().entry(name.clone()).or_insert(0) += 1;
     }
-    let eligible = count.eligible.lock().unwrap();
 
+    let eligible = count.eligible.lock().unwrap();
     if eligible.contains(name.as_str()) {
         if pass.as_str() == PASS {
+            // Log a sucessful solve to stderr
             if !count.solved.lock().unwrap().contains(&name) {
                 count.success_count.fetch_add(1, Ordering::Relaxed);
                 count.solved.lock().unwrap().insert(name.to_string());
 
                 let success_count = count.success_count.load(Ordering::Relaxed);
-                let attempts = count.hits.lock().unwrap().get(&name).unwrap().clone();
+                let attempts = *count.hits.lock().unwrap().get(&name).unwrap();
 
                 eprintln!(
                     "[SUCCESS] {} got {} place with {} attempts at {}",
@@ -56,9 +65,9 @@ fn check(name: String, pass: String, count: State<HitCount>) -> String {
                 );
             }
 
-            format!("Yes\n")
+            "Yes\n".to_string()
         } else {
-            format!("No\n")
+            "No\n".to_string()
         }
     } else {
         format!(
@@ -70,7 +79,7 @@ fn check(name: String, pass: String, count: State<HitCount>) -> String {
 
 #[get("/")]
 fn index() -> &'static str {
-    "Use challenge.hsiao.dev/01/<name>/<pass>"
+    "Use https://challenge.hsiao.dev/01/<name>/<pass>"
 }
 
 fn main() {
@@ -78,8 +87,9 @@ fn main() {
     eligible.insert("alex");
     eligible.insert("brian");
     eligible.insert("dean");
-    eligible.insert("lio");
+    eligible.insert("demo");
     eligible.insert("lily");
+    eligible.insert("lio");
     eligible.insert("lise");
     eligible.insert("luke");
     eligible.insert("myriam");
@@ -88,6 +98,7 @@ fn main() {
 
     let mut solved = HashSet::new();
     solved.insert("luke".to_string());
+    solved.insert("demo".to_string());
     solved.insert("sunny".to_string());
 
     rocket::ignite()
@@ -98,7 +109,7 @@ fn main() {
             solved: Mutex::new(solved),
             success_count: AtomicUsize::new(0),
         })
-        .mount("/", routes![index, status, check])
+        .mount("/", routes![index, total, status, check])
         .mount("/", StaticFiles::from("data/"))
         .launch();
 }
