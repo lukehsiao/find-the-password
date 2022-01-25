@@ -12,10 +12,11 @@ use axum::{
     routing::get,
     AddExtensionLayer, Json, Router, Server,
 };
+use chrono::{DateTime, Local};
 use rand::{distributions::Alphanumeric, Rng};
 use serde::{Deserialize, Serialize};
 use tower_http::trace::TraceLayer;
-use tracing::debug;
+use tracing::{debug, info};
 
 type SharedState = Arc<RwLock<State>>;
 
@@ -24,14 +25,14 @@ struct State {
     users: HashMap<String, UserState>,
     total_hits: u64,
     allowed_users: HashSet<String>,
+    winners: Vec<(DateTime<Local>, String)>,
 }
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 struct UserState {
     name: String,
-    eligible: bool,
     solved: bool,
-    hits_before_first_solve: u64,
+    hits_before_solve: u64,
     #[serde(skip)]
     secret_idx: usize,
     #[serde(skip)]
@@ -69,12 +70,14 @@ fn app() -> Router {
         users: HashMap::new(),
         total_hits: 0,
         allowed_users,
+        winners: vec![],
     }));
 
     Router::new()
         .route("/03", get(readme))
         .route("/03/:user", get(user_stats).post(create_user))
         .route("/03/:user/passwords.txt", get(get_passwords))
+        .route("/03/:user/check/:password", get(check_password))
         .layer(TraceLayer::new_for_http())
         .layer(AddExtensionLayer::new(shared_state))
 }
@@ -92,6 +95,43 @@ async fn get_passwords(
 ) -> Result<String, StatusCode> {
     if let Some(user) = state.read().unwrap().users.get(&username) {
         Ok(user.passwords.join("\n"))
+    } else {
+        Err(StatusCode::NOT_FOUND)
+    }
+}
+
+/// Check a password for the given user.
+async fn check_password(
+    Path((username, password)): Path<(String, String)>,
+    Extension(state): Extension<SharedState>,
+) -> Result<String, StatusCode> {
+    let mut state = state.write().unwrap();
+
+    if let Some(user) = state.users.get_mut(&username) {
+        // Track hits
+        if !user.solved {
+            user.hits_before_solve += 1;
+        }
+
+        // Respond
+        let result = match (user.solved, password == user.passwords[user.secret_idx]) {
+            (true, true) => Ok("True".to_string()),
+            (false, true) => {
+                user.solved = true;
+                let name = user.name.clone();
+                info!(
+                    winner = %serde_json::to_string(&user).unwrap(),
+                    secret_idx = %user.secret_idx,
+                    secret = %user.passwords[user.secret_idx],
+                    "We have a winner!"
+                );
+                state.winners.push((Local::now(), name));
+                Ok("True".to_string())
+            }
+            _ => Ok("False".to_string()),
+        };
+        state.total_hits += 1;
+        result
     } else {
         Err(StatusCode::NOT_FOUND)
     }
@@ -124,9 +164,8 @@ async fn create_user(
 
         let new_user = UserState {
             name: username,
-            eligible: true,
             solved: false,
-            hits_before_first_solve: 0,
+            hits_before_solve: 0,
             secret_idx,
             passwords,
         };
@@ -217,7 +256,7 @@ mod tests {
             name: String::from("test_user"),
             eligible: true,
             solved: false,
-            hits_before_first_solve: 0,
+            hits_before_solve: 0,
             secret_idx: 0,
             passwords: vec![],
         };
