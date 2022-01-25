@@ -297,9 +297,10 @@ mod tests {
         http::{Request, StatusCode},
     };
     use mime;
+    use test_log::test;
     use tower::util::ServiceExt;
 
-    #[tokio::test]
+    #[test(tokio::test)]
     async fn root() {
         let app = app();
 
@@ -318,7 +319,7 @@ mod tests {
         assert_eq!(&body[..], readme.as_bytes());
     }
 
-    #[tokio::test]
+    #[test(tokio::test)]
     async fn create_user() {
         let app = app();
 
@@ -348,7 +349,7 @@ mod tests {
         assert_eq!(user, gold);
     }
 
-    #[tokio::test]
+    #[test(tokio::test)]
     async fn get_password_file() {
         // This test, we need to server to maintain state, so we spawn a real server.
         let listener = TcpListener::bind("127.0.0.1:0".parse::<SocketAddr>().unwrap()).unwrap();
@@ -422,7 +423,7 @@ mod tests {
         assert_eq!(&first_pass, passwords[0]);
     }
 
-    #[tokio::test]
+    #[test(tokio::test)]
     async fn not_found() {
         let app = app();
 
