@@ -16,7 +16,6 @@ use rand::{distributions::Alphanumeric, Rng};
 use serde::{Deserialize, Serialize};
 use tower_http::trace::TraceLayer;
 use tracing::debug;
-use tracing_subscriber;
 
 type SharedState = Arc<RwLock<State>>;
 
@@ -36,7 +35,7 @@ struct UserState {
     #[serde(skip)]
     secret_idx: usize,
     #[serde(skip)]
-    passwords: HashSet<String>,
+    passwords: Vec<String>,
 }
 
 const NUM_PASSWORDS: usize = 20_000;
@@ -75,6 +74,7 @@ fn app() -> Router {
     Router::new()
         .route("/03", get(readme))
         .route("/03/user/:user", get(user_stats).post(create_user))
+        .route("/03/:user/passwords.txt", get(get_passwords))
         .layer(TraceLayer::new_for_http())
         .layer(AddExtensionLayer::new(shared_state))
 }
@@ -85,6 +85,19 @@ async fn readme() -> Html<&'static str> {
     Html(readme)
 }
 
+/// Get a user-specific list of passwords.
+async fn get_passwords(
+    Path(username): Path<String>,
+    Extension(state): Extension<SharedState>,
+) -> Result<String, StatusCode> {
+    if let Some(user) = state.read().unwrap().users.get(&username) {
+        Ok(user.passwords.join("\n"))
+    } else {
+        Err(StatusCode::NOT_FOUND)
+    }
+}
+
+/// Create a new user.
 async fn create_user(
     Path(username): Path<String>,
     Extension(state): Extension<SharedState>,
@@ -94,7 +107,7 @@ async fn create_user(
         // Don't want it too close to the front for those who will try to brute force
         let secret_idx = rng.gen_range(3000..NUM_PASSWORDS);
 
-        let passwords: HashSet<String> = (0..NUM_PASSWORDS)
+        let passwords: Vec<String> = (0..NUM_PASSWORDS)
             .map(|_| {
                 rng.clone()
                     .sample_iter(&Alphanumeric)
@@ -119,12 +132,14 @@ async fn create_user(
             .users
             .insert(String::from(&new_user.name), new_user.clone());
 
+        debug!(user = ?new_user, "Created new user");
         Ok(Json(new_user))
     } else {
         Err(StatusCode::FORBIDDEN)
     }
 }
 
+/// Get the stats for a specific user.
 async fn user_stats(
     Path(username): Path<String>,
     Extension(state): Extension<SharedState>,
@@ -139,6 +154,9 @@ async fn user_stats(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    use std::net::{SocketAddr, TcpListener};
+
     use axum::{
         body::Body,
         http,
@@ -181,7 +199,6 @@ mod tests {
             )
             .await
             .unwrap();
-
         assert_eq!(response.status(), StatusCode::OK);
 
         let response_body = hyper::body::to_bytes(response.into_body()).await.unwrap();
@@ -192,9 +209,84 @@ mod tests {
             solved: false,
             hits_before_first_solve: 0,
             secret_idx: 0,
-            passwords: HashSet::new(),
+            passwords: vec![],
         };
         assert_eq!(user, gold);
+    }
+
+    #[tokio::test]
+    async fn get_password_file() {
+        // This test, we need to server to maintain state, so we spawn a real server.
+        let listener = TcpListener::bind("127.0.0.1:0".parse::<SocketAddr>().unwrap()).unwrap();
+        let addr = listener.local_addr().unwrap();
+
+        tokio::spawn(async move {
+            axum::Server::from_tcp(listener)
+                .unwrap()
+                .serve(app().into_make_service())
+                .await
+                .unwrap()
+        });
+
+        let client = hyper::Client::new();
+
+        // First, create a user
+        let response = client
+            .request(
+                Request::builder()
+                    .method(http::Method::POST)
+                    .uri(format!("http://{addr}/03/user/test_user"))
+                    .header(http::header::CONTENT_TYPE, mime::APPLICATION_JSON.as_ref())
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+
+        // Then, test the passwords file
+        let response = client
+            .request(
+                Request::builder()
+                    .method(http::Method::GET)
+                    .uri(format!("http://{addr}/03/test_user/passwords.txt"))
+                    .header(http::header::CONTENT_TYPE, mime::APPLICATION_JSON.as_ref())
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let response_body = hyper::body::to_bytes(response.into_body()).await.unwrap();
+        dbg!(&response_body);
+        let passwords: Vec<&str> = std::str::from_utf8(&response_body)
+            .unwrap()
+            .split('\n')
+            .collect();
+
+        let first_pass = String::from(passwords[0]);
+        assert_eq!(passwords[0].len(), PASS_LEN);
+
+        // Ensure the response is always the same.
+        let response = client
+            .request(
+                Request::builder()
+                    .method(http::Method::GET)
+                    .uri(format!("http://{addr}/03/test_user/passwords.txt"))
+                    .header(http::header::CONTENT_TYPE, mime::APPLICATION_JSON.as_ref())
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        let passwords: Vec<&str> = std::str::from_utf8(&response_body)
+            .unwrap()
+            .split('\n')
+            .collect();
+
+        assert_eq!(&first_pass, passwords[0]);
     }
 
     #[tokio::test]
