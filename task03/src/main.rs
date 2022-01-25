@@ -7,6 +7,7 @@ use std::{
 
 use axum::{
     extract::{Extension, Path},
+    handler::Handler,
     http::StatusCode,
     response::Html,
     routing::get,
@@ -15,8 +16,8 @@ use axum::{
 use chrono::{DateTime, Local, SecondsFormat};
 use rand::{distributions::Alphanumeric, Rng};
 use serde::{Deserialize, Serialize};
-use tower_http::trace::TraceLayer;
-use tracing::{debug, info};
+use tower_http::{compression::CompressionLayer, trace::TraceLayer};
+use tracing::{debug, info, instrument};
 
 type SharedState = Arc<RwLock<State>>;
 
@@ -76,7 +77,10 @@ fn app() -> Router {
             "/03/:user",
             get(user_stats).post(create_user).delete(del_user),
         )
-        .route("/03/:user/passwords.txt", get(get_passwords))
+        .route(
+            "/03/:user/passwords.txt",
+            get(get_passwords.layer(CompressionLayer::new())),
+        )
         .route("/03/:user/check/:password", get(check_password))
         .route("/03/stats", get(get_stats))
         .layer(TraceLayer::new_for_http())
