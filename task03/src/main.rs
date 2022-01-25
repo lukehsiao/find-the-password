@@ -33,6 +33,7 @@ struct UserState {
     name: String,
     solved: bool,
     hits_before_solve: u64,
+    total_hits: u64,
     #[serde(skip)]
     secret_idx: usize,
     #[serde(skip)]
@@ -75,7 +76,10 @@ fn app() -> Router {
 
     Router::new()
         .route("/03", get(readme))
-        .route("/03/:user", get(user_stats).post(create_user))
+        .route(
+            "/03/:user",
+            get(user_stats).post(create_user).delete(del_user),
+        )
         .route("/03/:user/passwords.txt", get(get_passwords))
         .route("/03/:user/check/:password", get(check_password))
         .route("/03/stats", get(get_stats))
@@ -160,6 +164,7 @@ async fn check_password(
         if !user.solved {
             user.hits_before_solve += 1;
         }
+        user.total_hits += 1;
 
         // Respond
         let result = match (user.solved, password == user.passwords[user.secret_idx]) {
@@ -182,6 +187,37 @@ async fn check_password(
         result
     } else {
         Err(StatusCode::NOT_FOUND)
+    }
+}
+
+/// Delete a user.
+///
+/// # Example
+/// ```
+/// curl -X DELETE http://localhost:3000/03/test_user
+/// ```
+async fn del_user(
+    Path(username): Path<String>,
+    Extension(state): Extension<SharedState>,
+) -> StatusCode {
+    let mut state = state.write().unwrap();
+    if let Some(user) = state.users.remove(&username) {
+        let winners = &mut state.winners;
+        let idx = winners
+            .iter()
+            .position(|(_, name)| *name == user.name)
+            .unwrap();
+        winners.remove(idx);
+        state.total_hits -= user.total_hits;
+
+        info!(
+            user = %serde_json::to_string(&user).unwrap(),
+            "Deleted user."
+        );
+
+        StatusCode::OK
+    } else {
+        StatusCode::NOT_FOUND
     }
 }
 
@@ -214,6 +250,7 @@ async fn create_user(
             name: username,
             solved: false,
             hits_before_solve: 0,
+            total_hits: 0,
             secret_idx,
             passwords,
         };
@@ -302,9 +339,9 @@ mod tests {
         let user: UserState = serde_json::from_slice(&response_body).unwrap();
         let gold = UserState {
             name: String::from("test_user"),
-            eligible: true,
             solved: false,
             hits_before_solve: 0,
+            total_hits: 0,
             secret_idx: 0,
             passwords: vec![],
         };
