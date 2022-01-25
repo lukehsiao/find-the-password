@@ -12,7 +12,7 @@ use axum::{
     routing::get,
     AddExtensionLayer, Json, Router, Server,
 };
-use chrono::{DateTime, Local};
+use chrono::{DateTime, Local, SecondsFormat};
 use rand::{distributions::Alphanumeric, Rng};
 use serde::{Deserialize, Serialize};
 use tower_http::trace::TraceLayer;
@@ -78,6 +78,7 @@ fn app() -> Router {
         .route("/03/:user", get(user_stats).post(create_user))
         .route("/03/:user/passwords.txt", get(get_passwords))
         .route("/03/:user/check/:password", get(check_password))
+        .route("/03/stats", get(get_stats))
         .layer(TraceLayer::new_for_http())
         .layer(AddExtensionLayer::new(shared_state))
 }
@@ -98,6 +99,53 @@ async fn get_passwords(
     } else {
         Err(StatusCode::NOT_FOUND)
     }
+}
+
+/// Get the current stats for this session
+async fn get_stats(Extension(state): Extension<SharedState>) -> Html<String> {
+    let state = state.read().unwrap();
+
+    let mut winner_list = String::new();
+    for (datetime, name) in &state.winners {
+        let hits_before_solve = state.users.get(name).unwrap().hits_before_solve;
+        let entry = format!(
+            "<li>[{}] <strong>{}</strong> ({} attempts)</li>\n",
+            datetime.to_rfc3339_opts(SecondsFormat::Secs, true),
+            name,
+            hits_before_solve
+        );
+        winner_list += &entry;
+    }
+
+    let total_hits = state.total_hits;
+
+    let mut players_list = String::new();
+    for name in state.users.keys() {
+        let entry = format!("<li>{name}</li>\n");
+        players_list += &entry;
+    }
+    Html(format!(
+        "
+<html lang=\"en\">
+    <head><title>Challenge: Current Stats</title>
+        <link rel=\"stylesheet\" href=\"https://cdn.jsdelivr.net/npm/water.css@2/out/water.css\">
+    </head>
+
+    <body>
+        <h1>Current Stats</h1>
+        <h2>Leaderboard</h2>
+        <ol>
+            {winner_list}
+        </ol>
+
+        <h2>Registered Players</h2>
+        <ul>
+            {players_list}
+        </ul>
+        <strong>Total Attempts:</strong> {total_hits}
+    </body>
+</html>"
+    ))
 }
 
 /// Check a password for the given user.
