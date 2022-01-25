@@ -98,6 +98,11 @@ async fn get_passwords(
 }
 
 /// Create a new user.
+///
+/// # Example
+/// ```
+/// curl -X POST http://localhost:3000/03/test_user
+/// ```
 async fn create_user(
     Path(username): Path<String>,
     Extension(state): Extension<SharedState>,
@@ -133,7 +138,9 @@ async fn create_user(
             .insert(String::from(&new_user.name), new_user.clone());
 
         debug!(
-            user = %serde_json::to_string_pretty(&new_user).unwrap(),
+            user = %serde_json::to_string(&new_user).unwrap(),
+            secret_idx = %new_user.secret_idx,
+            secret = %new_user.passwords[new_user.secret_idx],
             "Created new user"
         );
         Ok(Json(new_user))
