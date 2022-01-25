@@ -1,5 +1,5 @@
 use std::{
-    collections::{HashMap, HashSet},
+    collections::HashMap,
     include_str,
     net::SocketAddr,
     sync::{Arc, RwLock},
@@ -24,7 +24,6 @@ type SharedState = Arc<RwLock<State>>;
 struct State {
     users: HashMap<String, UserState>,
     total_hits: u64,
-    allowed_users: HashSet<String>,
     winners: Vec<(DateTime<Local>, String)>,
 }
 
@@ -64,13 +63,9 @@ async fn main() {
 }
 
 fn app() -> Router {
-    let mut allowed_users: HashSet<String> = HashSet::new();
-    allowed_users.insert("test_user".to_string());
-
     let shared_state: SharedState = Arc::new(RwLock::new(State {
         users: HashMap::new(),
         total_hits: 0,
-        allowed_users,
         winners: vec![],
     }));
 
@@ -230,47 +225,43 @@ async fn del_user(
 async fn create_user(
     Path(username): Path<String>,
     Extension(state): Extension<SharedState>,
-) -> Result<Json<UserState>, StatusCode> {
-    if state.read().unwrap().allowed_users.contains(&username) {
-        let mut rng = rand::thread_rng();
-        // Don't want it too close to the front for those who will try to brute force
-        let secret_idx = rng.gen_range(3000..NUM_PASSWORDS);
+) -> Json<UserState> {
+    let mut rng = rand::thread_rng();
+    // Don't want it too close to the front for those who will try to brute force
+    let secret_idx = rng.gen_range(3000..NUM_PASSWORDS);
 
-        let passwords: Vec<String> = (0..NUM_PASSWORDS)
-            .map(|_| {
-                rng.clone()
-                    .sample_iter(&Alphanumeric)
-                    .take(PASS_LEN)
-                    .map(char::from)
-                    .collect()
-            })
-            .collect();
+    let passwords: Vec<String> = (0..NUM_PASSWORDS)
+        .map(|_| {
+            rng.clone()
+                .sample_iter(&Alphanumeric)
+                .take(PASS_LEN)
+                .map(char::from)
+                .collect()
+        })
+        .collect();
 
-        let new_user = UserState {
-            name: username,
-            solved: false,
-            hits_before_solve: 0,
-            total_hits: 0,
-            secret_idx,
-            passwords,
-        };
+    let new_user = UserState {
+        name: username,
+        solved: false,
+        hits_before_solve: 0,
+        total_hits: 0,
+        secret_idx,
+        passwords,
+    };
 
-        state
-            .write()
-            .unwrap()
-            .users
-            .insert(String::from(&new_user.name), new_user.clone());
+    state
+        .write()
+        .unwrap()
+        .users
+        .insert(String::from(&new_user.name), new_user.clone());
 
-        debug!(
-            user = %serde_json::to_string(&new_user).unwrap(),
-            secret_idx = %new_user.secret_idx,
-            secret = %new_user.passwords[new_user.secret_idx],
-            "Created new user"
-        );
-        Ok(Json(new_user))
-    } else {
-        Err(StatusCode::FORBIDDEN)
-    }
+    debug!(
+        user = %serde_json::to_string(&new_user).unwrap(),
+        secret_idx = %new_user.secret_idx,
+        secret = %new_user.passwords[new_user.secret_idx],
+        "Created new user"
+    );
+    Json(new_user)
 }
 
 /// Get the stats for a specific user.
