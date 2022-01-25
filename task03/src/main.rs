@@ -73,7 +73,7 @@ fn app() -> Router {
 
     Router::new()
         .route("/03", get(readme))
-        .route("/03/user/:user", get(user_stats).post(create_user))
+        .route("/03/:user", get(user_stats).post(create_user))
         .route("/03/:user/passwords.txt", get(get_passwords))
         .layer(TraceLayer::new_for_http())
         .layer(AddExtensionLayer::new(shared_state))
@@ -132,7 +132,10 @@ async fn create_user(
             .users
             .insert(String::from(&new_user.name), new_user.clone());
 
-        debug!(user = ?new_user, "Created new user");
+        debug!(
+            user = %serde_json::to_string_pretty(&new_user).unwrap(),
+            "Created new user"
+        );
         Ok(Json(new_user))
     } else {
         Err(StatusCode::FORBIDDEN)
@@ -192,7 +195,7 @@ mod tests {
             .oneshot(
                 Request::builder()
                     .method(http::Method::POST)
-                    .uri("/03/user/test_user")
+                    .uri("/03/test_user")
                     .header(http::header::CONTENT_TYPE, mime::APPLICATION_JSON.as_ref())
                     .body(Body::empty())
                     .unwrap(),
@@ -235,7 +238,7 @@ mod tests {
             .request(
                 Request::builder()
                     .method(http::Method::POST)
-                    .uri(format!("http://{addr}/03/user/test_user"))
+                    .uri(format!("http://{addr}/03/test_user"))
                     .header(http::header::CONTENT_TYPE, mime::APPLICATION_JSON.as_ref())
                     .body(Body::empty())
                     .unwrap(),
@@ -259,7 +262,6 @@ mod tests {
 
         assert_eq!(response.status(), StatusCode::OK);
         let response_body = hyper::body::to_bytes(response.into_body()).await.unwrap();
-        dbg!(&response_body);
         let passwords: Vec<&str> = std::str::from_utf8(&response_body)
             .unwrap()
             .split('\n')
