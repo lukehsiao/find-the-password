@@ -7,6 +7,7 @@ edition = "2021"
 
 [dependencies]
 axum = "0.4.4"
+chrono = "0.4.19"
 hyper = { version = "0.14.16", features = ["full"] }
 rand = "0.8.4"
 serde = { version = "1.0.135", features = ["derive"] }
