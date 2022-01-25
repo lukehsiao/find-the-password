@@ -15,8 +15,10 @@ serde_json = "1.0.78"
 tokio = { version = "1.15.0", features = ["full"] }
 tower-http = { version = "0.2.1", features = ["trace", "compression-full"] }
 tracing = "0.1.29"
-tracing-subscriber = { version = "0.3.6", features = ["env-filter"] }
+tracing-subscriber = { version = "0.3.6", features = ["env-filter", "fmt"] }
 
 [dev-dependencies]
+env_logger = "0.9.0"
 mime = "0.3.16"
+test-log = { version = "0.2.8", features = ["trace"] }
 tower = { version = "0.4.11", features = ["util"] }
