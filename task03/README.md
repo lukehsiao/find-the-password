@@ -1,6 +1,6 @@
 # Finding the password
 
-I have a text file with 50,000 passwords. I seem to have lost my password in this file! Can you help
+I have a text file with 20,000 passwords. I seem to have lost my password in this file! Can you help
 me find it?
 
 Of course, there will be prizes:
