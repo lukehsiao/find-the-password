@@ -43,6 +43,7 @@ const NUM_PASSWORDS: usize = 20_000;
 
 const PASS_LEN: usize = 32;
 
+#[instrument]
 #[tokio::main]
 async fn main() {
     // Set the RUST_LOG, if it hasn't been explicitly defined
@@ -83,12 +84,14 @@ fn app() -> Router {
 }
 
 /// Provide the README to the root path
+#[instrument]
 async fn readme() -> Html<&'static str> {
     let readme = include_str!("../README.html");
     Html(readme)
 }
 
 /// Get a user-specific list of passwords.
+#[instrument]
 async fn get_passwords(
     Path(username): Path<String>,
     Extension(state): Extension<SharedState>,
@@ -101,6 +104,7 @@ async fn get_passwords(
 }
 
 /// Get the current stats for this session
+#[instrument]
 async fn get_stats(Extension(state): Extension<SharedState>) -> Html<String> {
     let state = state.read().unwrap();
 
@@ -148,6 +152,7 @@ async fn get_stats(Extension(state): Extension<SharedState>) -> Html<String> {
 }
 
 /// Check a password for the given user.
+#[instrument]
 async fn check_password(
     Path((username, password)): Path<(String, String)>,
     Extension(state): Extension<SharedState>,
@@ -168,10 +173,10 @@ async fn check_password(
                 user.solved = true;
                 let name = user.name.clone();
                 info!(
-                    winner = %serde_json::to_string(&user).unwrap(),
-                    secret_idx = %user.secret_idx,
-                    secret = %user.passwords[user.secret_idx],
-                    "We have a winner!"
+                    "We have a winner: {}, {}, {}",
+                    serde_json::to_string(&user).unwrap(),
+                    user.secret_idx,
+                    user.passwords[user.secret_idx]
                 );
                 state.winners.push((Local::now(), name));
                 Ok("True".to_string())
@@ -191,6 +196,7 @@ async fn check_password(
 /// ```
 /// curl -X DELETE http://localhost:3000/03/test_user
 /// ```
+#[instrument]
 async fn del_user(
     Path(username): Path<String>,
     Extension(state): Extension<SharedState>,
@@ -205,10 +211,7 @@ async fn del_user(
         winners.remove(idx);
         state.total_hits -= user.total_hits;
 
-        info!(
-            user = %serde_json::to_string(&user).unwrap(),
-            "Deleted user."
-        );
+        info!("Deleted {}", serde_json::to_string(&user).unwrap(),);
 
         StatusCode::OK
     } else {
@@ -222,6 +225,7 @@ async fn del_user(
 /// ```
 /// curl -X POST http://localhost:3000/03/test_user
 /// ```
+#[instrument]
 async fn create_user(
     Path(username): Path<String>,
     Extension(state): Extension<SharedState>,
@@ -256,15 +260,16 @@ async fn create_user(
         .insert(String::from(&new_user.name), new_user.clone());
 
     debug!(
-        user = %serde_json::to_string(&new_user).unwrap(),
-        secret_idx = %new_user.secret_idx,
-        secret = %new_user.passwords[new_user.secret_idx],
-        "Created new user"
+        "Created new user: {} {} {}",
+        serde_json::to_string(&new_user).unwrap(),
+        new_user.secret_idx,
+        new_user.passwords[new_user.secret_idx],
     );
     Json(new_user)
 }
 
 /// Get the stats for a specific user.
+#[instrument]
 async fn user_stats(
     Path(username): Path<String>,
     Extension(state): Extension<SharedState>,
