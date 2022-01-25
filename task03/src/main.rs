@@ -9,7 +9,7 @@ use axum::{
     extract::{Extension, Path},
     handler::Handler,
     http::StatusCode,
-    response::Html,
+    response::{Html, Redirect},
     routing::get,
     AddExtensionLayer, Json, Router, Server,
 };
@@ -71,7 +71,7 @@ fn app() -> Router {
         winners: vec![],
     }));
 
-    Router::new()
+    let app = Router::new()
         .route("/03", get(readme))
         .route(
             "/03/:user",
@@ -84,7 +84,15 @@ fn app() -> Router {
         .route("/03/:user/check/:password", get(check_password))
         .route("/03/stats", get(get_stats))
         .layer(TraceLayer::new_for_http())
-        .layer(AddExtensionLayer::new(shared_state))
+        .layer(AddExtensionLayer::new(shared_state));
+
+    app.fallback(handler_redirect.into_service())
+}
+
+/// Provide a catch-all 404 handler.
+#[instrument]
+async fn handler_redirect() -> Redirect {
+    Redirect::permanent("/03".parse().unwrap())
 }
 
 /// Provide the README to the root path
@@ -277,11 +285,16 @@ async fn create_user(
 async fn user_stats(
     Path(username): Path<String>,
     Extension(state): Extension<SharedState>,
-) -> Result<Json<UserState>, StatusCode> {
+) -> Result<Json<UserState>, (StatusCode, Html<String>)> {
     if let Some(user) = state.read().unwrap().users.get(&username) {
         Ok(Json(user.clone()))
     } else {
-        Err(StatusCode::NOT_FOUND)
+        Err((
+            StatusCode::NOT_FOUND,
+            Html(format!(
+                "<body><p>There is no user: <strong>{username}</strong></p></body>"
+            )),
+        ))
     }
 }
 
