@@ -1,9 +1,32 @@
-use std::net::SocketAddr;
+use std::{
+    collections::{HashMap, HashSet},
+    include_str,
+    net::SocketAddr,
+    sync::{Arc, RwLock},
+};
 
-use axum::{routing::get, Router, Server};
+use axum::{response::Html, routing::get, Router, Server};
 use tower_http::trace::TraceLayer;
 use tracing::debug;
 use tracing_subscriber;
+
+type SharedState = Arc<RwLock<State>>;
+
+#[derive(Debug)]
+struct State {
+    users: HashMap<String, UserState>,
+    total_hits: u64,
+    allowed_users: HashSet<String>,
+}
+
+#[derive(Debug)]
+struct UserState {
+    name: String,
+    eligible: bool,
+    solved: bool,
+    hits_before_first_solve: u64,
+    secret: String,
+}
 
 #[tokio::main]
 async fn main() {
@@ -14,6 +37,8 @@ async fn main() {
     tracing_subscriber::fmt::init();
 
     let app = app();
+
+    // Run the server with hyper
     let addr = SocketAddr::from(([127, 0, 0, 1], 3000));
     debug!("Listening on {addr}");
     Server::bind(&addr)
@@ -24,12 +49,14 @@ async fn main() {
 
 fn app() -> Router {
     Router::new()
-        .route("/", get(handler))
+        .route("/03", get(readme))
         .layer(TraceLayer::new_for_http())
 }
 
-async fn handler() -> &'static str {
-    "Hello, World!"
+/// Provide the README to the root path
+async fn readme() -> Html<&'static str> {
+    let readme = include_str!("../README.html");
+    Html(readme)
 }
 
 #[cfg(test)]
