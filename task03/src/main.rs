@@ -41,8 +41,8 @@ struct UserState {
 }
 
 const NUM_PASSWORDS: usize = 20_000;
-
 const PASS_LEN: usize = 32;
+const OFFSET: usize = 4000;
 
 #[instrument]
 #[tokio::main]
@@ -244,7 +244,7 @@ async fn create_user(
 ) -> Json<UserState> {
     let mut rng = rand::thread_rng();
     // Don't want it too close to the front for those who will try to brute force
-    let secret_idx = rng.gen_range(3000..NUM_PASSWORDS);
+    let secret_idx = rng.gen_range(OFFSET..NUM_PASSWORDS);
 
     let passwords: Vec<String> = (0..NUM_PASSWORDS)
         .map(|_| {
