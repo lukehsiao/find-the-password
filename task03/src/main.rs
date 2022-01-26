@@ -75,7 +75,10 @@ fn app() -> Router {
         .route("/03", get(readme))
         .route(
             "/03/:user",
-            get(user_stats).post(create_user).delete(del_user),
+            get(user_stats)
+                .post(create_user)
+                .patch(reset_user)
+                .delete(del_user),
         )
         .route(
             "/03/:user/passwords.txt",
@@ -224,6 +227,59 @@ async fn del_user(
         state.total_hits -= user.total_hits;
 
         info!("Deleted {}", serde_json::to_string(&user).unwrap(),);
+
+        StatusCode::OK
+    } else {
+        StatusCode::NOT_FOUND
+    }
+}
+
+/// Reset a user.
+///
+/// # Example
+/// ```
+/// curl -X PATCH http://localhost:3000/03/test_user
+/// ```
+#[instrument]
+async fn reset_user(
+    Path(username): Path<String>,
+    Extension(state): Extension<SharedState>,
+) -> StatusCode {
+    let mut rng = rand::thread_rng();
+    let secret_idx = rng.gen_range(OFFSET..NUM_PASSWORDS);
+    let passwords: Vec<String> = (0..NUM_PASSWORDS)
+        .map(|_| {
+            rng.clone()
+                .sample_iter(&Alphanumeric)
+                .take(PASS_LEN)
+                .map(char::from)
+                .collect()
+        })
+        .collect();
+
+    let state: &mut State = &mut state.write().unwrap();
+    let users = &mut state.users;
+    let total_hits = &mut state.total_hits;
+    let winners = &mut state.winners;
+    if let Some(user) = users.get_mut(&username) {
+        // Reset relevant stats
+        *total_hits -= user.total_hits;
+        if let Some(idx) = winners.iter().position(|(_, name)| *name == user.name) {
+            winners.remove(idx);
+        }
+
+        user.hits_before_solve = 0;
+        user.solved = false;
+        user.total_hits = 0;
+        user.secret_idx = secret_idx;
+        user.passwords = passwords;
+
+        debug!(
+            user = %serde_json::to_string(&user).unwrap(),
+            secret_idx = %user.secret_idx,
+            secret = %user.passwords[user.secret_idx],
+            "Reset user."
+        );
 
         StatusCode::OK
     } else {
@@ -437,7 +493,7 @@ mod tests {
     }
 
     #[test(tokio::test)]
-    async fn not_found() {
+    async fn redirect() {
         let app = app();
 
         let response = app
@@ -450,8 +506,102 @@ mod tests {
             .await
             .unwrap();
 
-        assert_eq!(response.status(), StatusCode::NOT_FOUND);
+        assert_eq!(response.status(), StatusCode::PERMANENT_REDIRECT);
         let body = hyper::body::to_bytes(response.into_body()).await.unwrap();
         assert!(body.is_empty());
+    }
+
+    #[test(tokio::test)]
+    async fn reset_user() {
+        // This test, we need to server to maintain state, so we spawn a real server.
+        let listener = TcpListener::bind("127.0.0.1:0".parse::<SocketAddr>().unwrap()).unwrap();
+        let addr = listener.local_addr().unwrap();
+        tokio::spawn(async move {
+            axum::Server::from_tcp(listener)
+                .unwrap()
+                .serve(app().into_make_service())
+                .await
+                .unwrap()
+        });
+        let client = hyper::Client::new();
+
+        // First, create a user
+        let response = client
+            .request(
+                Request::builder()
+                    .method(http::Method::POST)
+                    .uri(format!("http://{addr}/03/test_user"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+
+        // Then, run a few bad checks
+        for i in 0..10 {
+            let response = client
+                .request(
+                    Request::builder()
+                        .method(http::Method::GET)
+                        .uri(format!("http://{addr}/03/test_user/check/{i}"))
+                        .body(Body::empty())
+                        .unwrap(),
+                )
+                .await
+                .unwrap();
+            assert_eq!(response.status(), StatusCode::OK);
+        }
+
+        let response = client
+            .request(
+                Request::builder()
+                    .method(http::Method::GET)
+                    .uri(format!("http://{addr}/03/stats"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        let response_body = String::from_utf8(
+            hyper::body::to_bytes(response.into_body())
+                .await
+                .unwrap()
+                .to_vec(),
+        )
+        .unwrap();
+        assert!(&response_body.contains("<strong>Total Attempts:</strong> 10"));
+
+        // Then, reset the user
+        let response = client
+            .request(
+                Request::builder()
+                    .method(http::Method::PATCH)
+                    .uri(format!("http://{addr}/03/test_user"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+
+        let response = client
+            .request(
+                Request::builder()
+                    .method(http::Method::GET)
+                    .uri(format!("http://{addr}/03/stats"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        let response_body = String::from_utf8(
+            hyper::body::to_bytes(response.into_body())
+                .await
+                .unwrap()
+                .to_vec(),
+        )
+        .unwrap();
+        assert!(&response_body.contains("<strong>Total Attempts:</strong> 0"));
     }
 }
