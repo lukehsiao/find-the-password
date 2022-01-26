@@ -14,10 +14,10 @@ use axum::{
     AddExtensionLayer, Json, Router, Server,
 };
 use chrono::{DateTime, Local, SecondsFormat};
-use rand::{distributions::Alphanumeric, Rng};
+use rand::{distributions::Alphanumeric, rngs::StdRng, Rng, SeedableRng};
 use serde::{Deserialize, Serialize};
 use tower_http::{compression::CompressionLayer, trace::TraceLayer};
-use tracing::{debug, info, instrument};
+use tracing::{debug, info};
 
 type SharedState = Arc<RwLock<State>>;
 
@@ -35,16 +35,15 @@ struct UserState {
     hits_before_solve: u64,
     total_hits: u64,
     #[serde(skip)]
-    secret_idx: usize,
+    seed: u64,
     #[serde(skip)]
-    passwords: Vec<String>,
+    secret: String,
 }
 
 const NUM_PASSWORDS: usize = 20_000;
 const PASS_LEN: usize = 32;
 const OFFSET: usize = 4000;
 
-#[instrument]
 #[tokio::main]
 async fn main() {
     // Set the RUST_LOG, if it hasn't been explicitly defined
@@ -93,33 +92,52 @@ fn app() -> Router {
 }
 
 /// Provide a catch-all 404 handler.
-#[instrument]
 async fn handler_redirect() -> Redirect {
     Redirect::permanent("/03".parse().unwrap())
 }
 
 /// Provide the README to the root path
-#[instrument]
 async fn readme() -> Html<&'static str> {
     let readme = include_str!("../README.html");
     Html(readme)
 }
 
 /// Get a user-specific list of passwords.
-#[instrument]
 async fn get_passwords(
     Path(username): Path<String>,
     Extension(state): Extension<SharedState>,
 ) -> Result<String, StatusCode> {
     if let Some(user) = state.read().unwrap().users.get(&username) {
-        Ok(user.passwords.join("\n"))
+        // Generate password file on-the-fly
+        let mut rng = StdRng::seed_from_u64(user.seed);
+
+        let mut passwords: Vec<String> = (0..NUM_PASSWORDS)
+            .map(|_| {
+                (&mut rng)
+                    .sample_iter(&Alphanumeric)
+                    .take(PASS_LEN)
+                    .map(char::from)
+                    .collect()
+            })
+            .collect();
+
+        // The first password generated is the secret, so swap it later into the list.
+        let offset = user.seed as usize % (NUM_PASSWORDS - OFFSET) + OFFSET;
+        passwords.swap(0, offset);
+
+        debug!(
+            user = %serde_json::to_string(&user).unwrap(),
+            offset = offset,
+            "Generated {NUM_PASSWORDS} passwords"
+        );
+
+        Ok(passwords.join("\n"))
     } else {
         Err(StatusCode::NOT_FOUND)
     }
 }
 
 /// Get the current stats for this session
-#[instrument]
 async fn get_stats(Extension(state): Extension<SharedState>) -> Html<String> {
     let state = state.read().unwrap();
 
@@ -167,7 +185,6 @@ async fn get_stats(Extension(state): Extension<SharedState>) -> Html<String> {
 }
 
 /// Check a password for the given user.
-#[instrument]
 async fn check_password(
     Path((username, password)): Path<(String, String)>,
     Extension(state): Extension<SharedState>,
@@ -182,16 +199,15 @@ async fn check_password(
         user.total_hits += 1;
 
         // Respond
-        let result = match (user.solved, password == user.passwords[user.secret_idx]) {
+        let result = match (user.solved, password == user.secret) {
             (true, true) => Ok("True".to_string()),
             (false, true) => {
                 user.solved = true;
                 let name = user.name.clone();
                 info!(
-                    "We have a winner: {}, {}, {}",
-                    serde_json::to_string(&user).unwrap(),
-                    user.secret_idx,
-                    user.passwords[user.secret_idx]
+                    user = %serde_json::to_string(&user).unwrap(),
+                    secret = %user.secret,
+                    "We have a winner!",
                 );
                 state.winners.push((Local::now(), name));
                 Ok("True".to_string())
@@ -211,7 +227,6 @@ async fn check_password(
 /// ```
 /// curl -X DELETE http://localhost:3000/03/test_user
 /// ```
-#[instrument]
 async fn del_user(
     Path(username): Path<String>,
     Extension(state): Extension<SharedState>,
@@ -240,21 +255,19 @@ async fn del_user(
 /// ```
 /// curl -X PATCH http://localhost:3000/03/test_user
 /// ```
-#[instrument]
 async fn reset_user(
     Path(username): Path<String>,
     Extension(state): Extension<SharedState>,
 ) -> StatusCode {
-    let mut rng = rand::thread_rng();
-    let secret_idx = rng.gen_range(OFFSET..NUM_PASSWORDS);
-    let passwords: Vec<String> = (0..NUM_PASSWORDS)
-        .map(|_| {
-            rng.clone()
-                .sample_iter(&Alphanumeric)
-                .take(PASS_LEN)
-                .map(char::from)
-                .collect()
-        })
+    let seed: u64 = &username.as_bytes().iter().map(|x| u64::from(*x)).sum()
+        + Local::now().timestamp_millis() as u64;
+    let rng = StdRng::seed_from_u64(seed);
+
+    let secret: String = rng
+        .clone()
+        .sample_iter(&Alphanumeric)
+        .take(PASS_LEN)
+        .map(char::from)
         .collect();
 
     let state: &mut State = &mut state.write().unwrap();
@@ -271,14 +284,13 @@ async fn reset_user(
         user.hits_before_solve = 0;
         user.solved = false;
         user.total_hits = 0;
-        user.secret_idx = secret_idx;
-        user.passwords = passwords;
+        user.seed = seed;
+        user.secret = secret;
 
         debug!(
             user = %serde_json::to_string(&user).unwrap(),
-            secret_idx = %user.secret_idx,
-            secret = %user.passwords[user.secret_idx],
-            "Reset user."
+            secret = %user.secret,
+            "Reset user"
         );
 
         StatusCode::OK
@@ -293,23 +305,19 @@ async fn reset_user(
 /// ```
 /// curl -X POST http://localhost:3000/03/test_user
 /// ```
-#[instrument]
 async fn create_user(
     Path(username): Path<String>,
     Extension(state): Extension<SharedState>,
 ) -> Json<UserState> {
-    let mut rng = rand::thread_rng();
-    // Don't want it too close to the front for those who will try to brute force
-    let secret_idx = rng.gen_range(OFFSET..NUM_PASSWORDS);
+    let seed: u64 = &username.as_bytes().iter().map(|x| u64::from(*x)).sum()
+        + Local::now().timestamp_millis() as u64;
+    let rng = StdRng::seed_from_u64(seed);
 
-    let passwords: Vec<String> = (0..NUM_PASSWORDS)
-        .map(|_| {
-            rng.clone()
-                .sample_iter(&Alphanumeric)
-                .take(PASS_LEN)
-                .map(char::from)
-                .collect()
-        })
+    let secret: String = rng
+        .clone()
+        .sample_iter(&Alphanumeric)
+        .take(PASS_LEN)
+        .map(char::from)
         .collect();
 
     let new_user = UserState {
@@ -317,8 +325,8 @@ async fn create_user(
         solved: false,
         hits_before_solve: 0,
         total_hits: 0,
-        secret_idx,
-        passwords,
+        seed,
+        secret,
     };
 
     state
@@ -328,16 +336,14 @@ async fn create_user(
         .insert(String::from(&new_user.name), new_user.clone());
 
     debug!(
-        "Created new user: {} {} {}",
-        serde_json::to_string(&new_user).unwrap(),
-        new_user.secret_idx,
-        new_user.passwords[new_user.secret_idx],
+        user = %serde_json::to_string(&new_user).unwrap(),
+        secret = %new_user.secret,
+        "Created new user",
     );
     Json(new_user)
 }
 
 /// Get the stats for a specific user.
-#[instrument]
 async fn user_stats(
     Path(username): Path<String>,
     Extension(state): Extension<SharedState>,
@@ -412,8 +418,8 @@ mod tests {
             solved: false,
             hits_before_solve: 0,
             total_hits: 0,
-            secret_idx: 0,
-            passwords: vec![],
+            seed: 0,
+            secret: String::new(),
         };
         assert_eq!(user, gold);
     }
