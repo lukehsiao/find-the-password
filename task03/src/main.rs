@@ -73,17 +73,17 @@ fn app() -> Router {
     let app = Router::new()
         .route("/03", get(readme))
         .route(
-            "/03/:user",
+            "/03/u/:user",
             get(user_stats)
                 .post(create_user)
                 .patch(reset_user)
                 .delete(del_user),
         )
         .route(
-            "/03/:user/passwords.txt",
+            "/03/u/:user/passwords.txt",
             get(get_passwords.layer(CompressionLayer::new())),
         )
-        .route("/03/:user/check/:password", get(check_password))
+        .route("/03/u/:user/check/:password", get(check_password))
         .route("/03/stats", get(get_stats))
         .layer(TraceLayer::new_for_http())
         .layer(AddExtensionLayer::new(shared_state));
@@ -225,7 +225,7 @@ async fn check_password(
 ///
 /// # Example
 /// ```
-/// curl -X DELETE http://localhost:3000/03/test_user
+/// curl -X DELETE http://localhost:3000/03/u/test_user
 /// ```
 async fn del_user(
     Path(username): Path<String>,
@@ -253,7 +253,7 @@ async fn del_user(
 ///
 /// # Example
 /// ```
-/// curl -X PATCH http://localhost:3000/03/test_user
+/// curl -X PATCH http://localhost:3000/03/u/test_user
 /// ```
 async fn reset_user(
     Path(username): Path<String>,
@@ -307,7 +307,7 @@ async fn reset_user(
 ///
 /// # Example
 /// ```
-/// curl -X POST http://localhost:3000/03/test_user
+/// curl -X POST http://localhost:3000/03/u/test_user
 /// ```
 async fn create_user(
     Path(username): Path<String>,
@@ -410,7 +410,7 @@ mod tests {
             .oneshot(
                 Request::builder()
                     .method(http::Method::POST)
-                    .uri("/03/test_user")
+                    .uri("/03/u/test_user")
                     .header(http::header::CONTENT_TYPE, mime::APPLICATION_JSON.as_ref())
                     .body(Body::empty())
                     .unwrap(),
@@ -453,7 +453,7 @@ mod tests {
             .request(
                 Request::builder()
                     .method(http::Method::POST)
-                    .uri(format!("http://{addr}/03/test_user"))
+                    .uri(format!("http://{addr}/03/u/test_user"))
                     .header(http::header::CONTENT_TYPE, mime::APPLICATION_JSON.as_ref())
                     .body(Body::empty())
                     .unwrap(),
@@ -467,7 +467,7 @@ mod tests {
             .request(
                 Request::builder()
                     .method(http::Method::GET)
-                    .uri(format!("http://{addr}/03/test_user/passwords.txt"))
+                    .uri(format!("http://{addr}/03/u/test_user/passwords.txt"))
                     .header(http::header::CONTENT_TYPE, mime::APPLICATION_JSON.as_ref())
                     .body(Body::empty())
                     .unwrap(),
@@ -490,7 +490,7 @@ mod tests {
             .request(
                 Request::builder()
                     .method(http::Method::GET)
-                    .uri(format!("http://{addr}/03/test_user/passwords.txt"))
+                    .uri(format!("http://{addr}/03/u/test_user/passwords.txt"))
                     .header(http::header::CONTENT_TYPE, mime::APPLICATION_JSON.as_ref())
                     .body(Body::empty())
                     .unwrap(),
@@ -544,7 +544,7 @@ mod tests {
             .request(
                 Request::builder()
                     .method(http::Method::POST)
-                    .uri(format!("http://{addr}/03/test_user"))
+                    .uri(format!("http://{addr}/03/u/test_user"))
                     .body(Body::empty())
                     .unwrap(),
             )
@@ -558,7 +558,7 @@ mod tests {
                 .request(
                     Request::builder()
                         .method(http::Method::GET)
-                        .uri(format!("http://{addr}/03/test_user/check/{i}"))
+                        .uri(format!("http://{addr}/03/u/test_user/check/{i}"))
                         .body(Body::empty())
                         .unwrap(),
                 )
@@ -591,7 +591,7 @@ mod tests {
             .request(
                 Request::builder()
                     .method(http::Method::PATCH)
-                    .uri(format!("http://{addr}/03/test_user"))
+                    .uri(format!("http://{addr}/03/u/test_user"))
                     .body(Body::empty())
                     .unwrap(),
             )
