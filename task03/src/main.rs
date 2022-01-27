@@ -263,7 +263,7 @@ async fn reset_user(
     Path(username): Path<String>,
     Extension(state): Extension<SharedState>,
 ) -> StatusCode {
-    let seed: u64 = &username
+    let seed: u64 = username
         .as_bytes()
         .iter()
         .map(|x| u64::from(*x))
@@ -272,7 +272,6 @@ async fn reset_user(
     let rng = StdRng::seed_from_u64(seed);
 
     let secret: String = rng
-        .clone()
         .sample_iter(&Alphanumeric)
         .take(PASS_LEN)
         .map(char::from)
@@ -317,7 +316,7 @@ async fn create_user(
     Path(username): Path<String>,
     Extension(state): Extension<SharedState>,
 ) -> Json<UserState> {
-    let seed: u64 = &username
+    let seed: u64 = username
         .as_bytes()
         .iter()
         .map(|x| u64::from(*x))
@@ -326,7 +325,6 @@ async fn create_user(
     let rng = StdRng::seed_from_u64(seed);
 
     let secret: String = rng
-        .clone()
         .sample_iter(&Alphanumeric)
         .take(PASS_LEN)
         .map(char::from)
