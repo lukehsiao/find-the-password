@@ -133,6 +133,10 @@ async fn get_passwords(
 
         Ok(passwords.join("\n"))
     } else {
+        debug!(
+            user = %username,
+            "User does not exist, thus, no passwords.txt"
+        );
         Err(StatusCode::NOT_FOUND)
     }
 }
