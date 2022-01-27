@@ -6,6 +6,7 @@ use tracing::info;
 
 use anyhow::{anyhow, Result};
 use rayon::prelude::*;
+use ureq::{Agent, AgentBuilder};
 
 fn main() -> Result<()> {
     tracing_subscriber::fmt::init();
@@ -18,9 +19,11 @@ fn main() -> Result<()> {
         .map(|pass| format!("https://challenge.hsiao.dev/03/u/luke/check/{pass}"))
         .collect();
 
+    let agent: Agent = AgentBuilder::new().build();
+
     urls.par_iter().for_each(|n| {
         info!(url = %n, "Trying URL");
-        if let Ok(res) = ureq::get(&n).call() {
+        if let Ok(res) = agent.get(&n).call() {
             if res.into_string().unwrap() == "True" {
                 let pass = n.rsplit("/").next().unwrap();
                 println!("Password is: {pass}");
