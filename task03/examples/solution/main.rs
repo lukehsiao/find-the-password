@@ -1,7 +1,10 @@
-use std::io::{self, Read};
-use tracing::debug;
+use std::{
+    io::{self, Read},
+    process,
+};
+use tracing::info;
 
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use rayon::prelude::*;
 
 fn main() -> Result<()> {
@@ -9,28 +12,23 @@ fn main() -> Result<()> {
 
     let mut input = String::new();
     io::stdin().read_to_string(&mut input)?;
-    let passwords: Vec<String> = input.lines().map(|n| n.trim().to_string()).collect();
+    let urls: Vec<String> = input
+        .lines()
+        .map(|n| n.trim().to_string())
+        .map(|pass| format!("https://challenge.hsiao.dev/03/u/luke/check/{pass}"))
+        .collect();
 
-    let pass = passwords.par_iter().find_any(|n| {
-        let url = format!("https://challenge.hsiao.dev/03/u/luke/check/{n}");
-        debug!(url = %url, "Trying URL");
-        let body: String =
-            ureq::get(format!("https://challenge.hsiao.dev/03/u/luke/check/{n}").as_str())
-                .call()
-                .unwrap()
-                .into_string()
-                .unwrap();
-        if body.starts_with("True") {
-            println!("{}", body);
-            true
-        } else {
-            false
+    urls.par_iter().for_each(|n| {
+        info!(url = %n, "Trying URL");
+        if let Ok(res) = ureq::get(&n).call() {
+            if res.into_string().unwrap() == "True" {
+                let pass = n.rsplit("/").next().unwrap();
+                println!("Password is: {pass}");
+                // Terminate immediately
+                process::exit(0);
+            }
         }
     });
 
-    if let Some(p) = pass {
-        println!("Password is: {}", p);
-    }
-
-    Ok(())
+    Err(anyhow!("Didn't find the password :("))
 }
