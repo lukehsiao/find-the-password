@@ -357,9 +357,24 @@ async fn create_user(
 async fn user_stats(
     Path(username): Path<String>,
     Extension(state): Extension<SharedState>,
-) -> Result<Json<UserState>, (StatusCode, Html<String>)> {
+) -> Result<Html<String>, (StatusCode, Html<String>)> {
     if let Some(user) = state.read().unwrap().users.get(&username) {
-        Ok(Json(user.clone()))
+        Ok(Html(format!(
+            "
+    <html lang=\"en\">
+        <head><title>Challenge: User Stats</title>
+            <link rel=\"stylesheet\" href=\"https://cdn.jsdelivr.net/npm/water.css@2/out/water.css\">
+        </head>
+
+        <body>
+            <h1>Stats for {}</h1>
+            <ul>
+                <li> Hits Before Solve: {} </li>
+                <li> Total Hits: {} </li>
+            </ul>
+        </body>
+    </html>", user.name, user.hits_before_solve, user.total_hits
+        )))
     } else {
         Err((
             StatusCode::NOT_FOUND,
