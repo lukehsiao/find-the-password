@@ -15,7 +15,6 @@ fn main() -> Result<()> {
     io::stdin().read_to_string(&mut input)?;
     let urls: Vec<String> = input
         .lines()
-        .map(|n| n.trim().to_string())
         .map(|pass| format!("https://challenge.hsiao.dev/03/u/luke/check/{pass}"))
         .collect();
 
