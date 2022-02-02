@@ -13,6 +13,28 @@ $ cargo run --release 2>&1 | tee winner.log
 
 The redirection and logging to a file is helpful if you need to reference what happened later.
 
+While the server is running, you can then create, reset, and delete users. Assuming the server is
+public at https://challenge.hsiao.dev
+
+Create a new username `new_user`.
+```
+$ curl -X POST https://challenge.hsiao.dev/03/u/new_user
+```
+
+Reset `new_user`, removing them from winners and taking away their hits from `total_hits`.
+```
+$ curl -X PATCH https://challenge.hsiao.dev/03/u/new_user
+```
+
+Delete `new_user`, removing them from winners and taking away their hits from `total_hits`.
+```
+$ curl -X DELETE https://challenge.hsiao.dev/03/u/new_user
+```
+
+Obviously, these are not secured in any way. However, given the audience for this project will just
+be issuing GET requests (most likely?), we should be relatively safe from accidental state changes.
+
+
 # Finding the password
 
 I have a text file with 20,000 passwords. I seem to have lost my password in this file! Can you help
