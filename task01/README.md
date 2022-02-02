@@ -1,3 +1,7 @@
+# Running
+
+Because this uses Rocket, this challenge requires nightly rust (`rustup default nightly`).
+
 # Finding the password
 
 I have a text file with 10,000 passwords. I seem to have lost my password in this file! Can you help

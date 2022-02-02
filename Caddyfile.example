@@ -4,6 +4,6 @@
 #  auto_https disable_redirects
 #}
 
-https://challenge.hsiao.dev
-
-reverse_proxy localhost:8000
+challenge.hsiao.dev {
+    reverse_proxy localhost:8000
+}

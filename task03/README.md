@@ -1,3 +1,18 @@
+# Running
+
+This challenge simply stores state in-memory, and does not persist it to disk. Consequently, you
+need to keep it running for the duration of the challenge. The recommended way to do this is using
+tmux or screen.
+
+Assuming Caddy and Rust are already installed, and this repo is already cloned, start a new tmux
+session and run
+
+```
+$ cargo run --release 2>&1 | tee winner.log
+```
+
+The redirection and logging to a file is helpful if you need to reference what happened later.
+
 # Finding the password
 
 I have a text file with 20,000 passwords. I seem to have lost my password in this file! Can you help

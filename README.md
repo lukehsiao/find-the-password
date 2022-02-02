@@ -4,21 +4,38 @@ A collection of coding challenges for youth.
 
 ## Running
 
-Typically run on a \$5/month DigitalOcean droplet running Ubuntu. This runs Rocket.rs, but I put
-that behind a [Caddy](https://caddyserver.com/) server with the included Caddyfile for easy HTTPS.
-All run in a tmux session for the duration of the challenge.
+Typically run on a \$5/month DigitalOcean droplet running Ubuntu using
+[Caddy](https://caddyserver.com/) as a reverse proxy with easy HTTPS.
+All run in a tmux session for the duration of the challenge. See the individual tasks for additional
+details.
 
-### Starting on a clean DigitalOcean Ubuntu droplet
-1. Install Rust - https://www.rust-lang.org/tools/install
-2. In a separate tmux/screen session, from taskN dir, run `cargo run`
-    * If this fails with an error like `error: linker `cc` not found`, then run `sudo apt install build-essential`
-3. Switch to the nightly Rust build (required for Rocket) - `rustup default nightly`
-4. In a persistent tmux/screen session, run `cargo run`
-5. In a separate tmux/screen session, install Caddy - https://caddyserver.com/docs/install#debian-ubuntu-raspbian
-6. Create a Caddyfile from Caddyfile.example for your domain.
-7. Run `sudo caddy run`
-    * You may be able to run without `sudo`, but I got permission denied binding to port 443.
-## Ideas
+## Setting Up Caddy
+
+Install Caddy: https://caddyserver.com/docs/install
+
+Recommend installing via `apt` so it is already set up as a systemd service.
+
+Then, configure the Caddyfile for your domain.
+
+```
+$ sudoedit /etc/caddy/Caddyfile
+```
+
+Once configuration is done, reload caddy.
+
+```
+$ sudo systemctl reload caddy
+```
+
+You can view the caddy logs using journalctl.
+
+```
+$ sudo journalctl -b 0 -u caddy.service
+```
+
+An example Caddyfile is provided in Caddy.example.
+
+## TODO Ideas
 
 Some helpful links with other ideas
 
