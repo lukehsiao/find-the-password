@@ -5,5 +5,5 @@
 #}
 
 challenge.hsiao.dev {
-    reverse_proxy localhost:8000
+    reverse_proxy localhost:3000
 }
