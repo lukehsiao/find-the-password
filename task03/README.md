@@ -98,7 +98,7 @@ Brute force is the only answer.
 ## Running the Parallelized Rust Example Solution
 
 ```
-$ curl -L https://challenge.hsiao.dev/03/luke/passwords.txt | cargo run --release --example=solution --
+$ curl -L https://challenge.hsiao.dev/03/u/luke/passwords.txt | cargo run --release --example=solution --
 ```
 
 _This challenge was inspired by Marc Scott's blog post: [Kids can't use computers... and this is why
