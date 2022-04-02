@@ -6,12 +6,12 @@ use std::{
 };
 
 use axum::{
-    extract::{Extension, Path},
+    extract::Path,
     handler::Handler,
     http::StatusCode,
     response::{Html, Redirect},
     routing::get,
-    AddExtensionLayer, Json, Router, Server,
+    Extension, Json, Router, Server,
 };
 use chrono::{DateTime, Local, SecondsFormat};
 use rand::{distributions::Alphanumeric, rngs::StdRng, Rng, SeedableRng};
@@ -86,14 +86,14 @@ fn app() -> Router {
         .route("/03/u/:user/check/:password", get(check_password))
         .route("/03/stats", get(get_stats))
         .layer(TraceLayer::new_for_http())
-        .layer(AddExtensionLayer::new(shared_state));
+        .layer(Extension(shared_state));
 
     app.fallback(handler_redirect.into_service())
 }
 
 /// Provide a catch-all 404 handler.
 async fn handler_redirect() -> Redirect {
-    Redirect::permanent("/03".parse().unwrap())
+    Redirect::permanent("/03")
 }
 
 /// Provide the README to the root path
