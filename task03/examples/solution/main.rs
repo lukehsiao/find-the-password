@@ -2,13 +2,14 @@ use std::{
     io::{self, Read},
     process,
 };
-use tracing::info;
 
-use anyhow::{anyhow, Result};
-use rayon::prelude::*;
-use ureq::{Agent, AgentBuilder};
+use anyhow::{anyhow, ensure, Result};
+use futures::{stream, StreamExt};
+use reqwest::ClientBuilder;
+use tracing::{debug, info};
 
-fn main() -> Result<()> {
+#[tokio::main]
+async fn main() -> Result<()> {
     tracing_subscriber::fmt::init();
 
     let mut input = String::new();
@@ -18,19 +19,39 @@ fn main() -> Result<()> {
         .map(|pass| format!("https://challenge.hsiao.dev/03/u/luke/check/{pass}"))
         .collect();
 
-    let agent: Agent = AgentBuilder::new().build();
+    let client = ClientBuilder::new().build()?;
 
-    urls.par_iter().for_each(|n| {
-        info!(url = %n, "Trying URL");
-        if let Ok(res) = agent.get(&n).call() {
-            if res.into_string().unwrap() == "True" {
-                let pass = n.rsplit("/").next().unwrap();
-                println!("Password is: {pass}");
-                // Terminate immediately
-                process::exit(0);
+    let num_cpus = num_cpus::get();
+    info!("Num CPUs: {num_cpus}");
+
+    let bodies = stream::iter(urls)
+        .map(|url| {
+            let client = &client;
+            let pass = url.rsplit("/").next().unwrap().to_string();
+            async move {
+                let resp = client.get(url).send().await?;
+                ensure!(resp.status().is_success(), "Bad http request");
+                let text = resp.text().await?;
+                let result: Result<(String, String)> = Ok((pass, text));
+                result
             }
-        }
-    });
+        })
+        .buffer_unordered(num_cpus);
+
+    bodies
+        .for_each(|b| async {
+            match b {
+                Ok((pass, body)) if &body == "True" => {
+                    println!("Password is: {pass}");
+                    process::exit(0);
+                }
+                Ok((pass, body)) => {
+                    debug!("{pass}: {body}")
+                }
+                _ => {}
+            }
+        })
+        .await;
 
     Err(anyhow!("Didn't find the password :("))
 }
