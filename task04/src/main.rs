@@ -16,7 +16,6 @@ use axum::{
     Router, Server,
 };
 use lazy_static::lazy_static;
-use tempfile::tempfile;
 use tower_http::{compression::CompressionLayer, trace::TraceLayer};
 use tracing::debug;
 
@@ -65,7 +64,7 @@ fn app() -> Router {
 
 /// Provide a catch-all 404 handler.
 async fn handler_redirect() -> Redirect {
-    Redirect::permanent("/03".parse().unwrap())
+    Redirect::permanent("/03")
 }
 
 /// Provide the README to the root path
