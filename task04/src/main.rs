@@ -1,14 +1,9 @@
-use std::{
-    collections::HashMap,
-    include_str,
-    io::{self, Write},
-    net::SocketAddr,
-    process::Command,
-};
+use std::{collections::HashMap, env, include_str, net::SocketAddr};
 
+use anyhow::{Context, Result};
 use axum::{
     body::Bytes,
-    extract::ContentLengthLimit,
+    extract::{ContentLengthLimit, Extension},
     handler::Handler,
     http::StatusCode,
     response::{Html, IntoResponse, Redirect},
@@ -16,6 +11,7 @@ use axum::{
     Router, Server,
 };
 use lazy_static::lazy_static;
+use sqlx::SqlitePool;
 use tower_http::{compression::CompressionLayer, trace::TraceLayer};
 use tracing::debug;
 
@@ -34,29 +30,44 @@ lazy_static! {
 }
 
 #[tokio::main]
-async fn main() {
+async fn main() -> Result<()> {
     // Set the RUST_LOG, if it hasn't been explicitly defined
     if std::env::var_os("RUST_LOG").is_none() {
         std::env::set_var("RUST_LOG", "task04=debug,tower_http=info")
     }
+    if std::env::var_os("DATABASE_URL").is_none() {
+        std::env::set_var("DATABASE_URL", "sqlite:task04.db")
+    }
     tracing_subscriber::fmt::init();
 
-    let app = app();
+    let pool = SqlitePool::connect(&env::var("DATABASE_URL")?).await?;
+
+    sqlx::migrate!()
+        .run(&pool)
+        .await
+        .context("Failed to migrate database")?;
+
+    debug!("Migrated the database.");
+
+    let app = app(pool);
 
     // Run the server with hyper
     let addr = SocketAddr::from(([127, 0, 0, 1], 3000));
-    debug!("Listening on {addr}");
     Server::bind(&addr)
         .serve(app.into_make_service())
         .await
         .unwrap();
+    debug!("Listening on {addr}");
+
+    Ok(())
 }
 
-fn app() -> Router {
+fn app(pool: SqlitePool) -> Router {
     let app = Router::new()
         .route("/04", get(readme))
         .route("/04/files", get(download.layer(CompressionLayer::new())))
         .route("/04/upload", post(check_upload))
+        .layer(Extension(pool))
         .layer(TraceLayer::new_for_http());
 
     app.fallback(handler_redirect.into_service())
@@ -79,7 +90,7 @@ async fn download() -> impl IntoResponse {
 
 // Take in only 1mb
 async fn check_upload(
-    ContentLengthLimit(bytes): ContentLengthLimit<Bytes, { 1024 * 1_000 }>,
+    ContentLengthLimit(_bytes): ContentLengthLimit<Bytes, { 1024 * 1_000 }>,
 ) -> impl IntoResponse {
     StatusCode::OK
 }
@@ -95,8 +106,9 @@ mod tests {
     use tower::util::ServiceExt;
 
     #[test(tokio::test)]
-    async fn check_upload() {
-        let app = app();
+    async fn check_upload() -> Result<()> {
+        let pool = SqlitePool::connect(&env::var("DATABASE_URL")?).await?;
+        let app = app(pool);
 
         let readme = include_str!("../README.html");
 
@@ -111,5 +123,6 @@ mod tests {
 
         let body = hyper::body::to_bytes(response.into_body()).await.unwrap();
         assert_eq!(&body[..], readme.as_bytes());
+        Ok(())
     }
 }
