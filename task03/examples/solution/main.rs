@@ -29,7 +29,7 @@ async fn main() -> Result<()> {
     let bodies = stream::iter(urls)
         .map(|url| {
             let client = &client;
-            let pass = url.rsplit("/").next().unwrap().to_string();
+            let pass = url.rsplit('/').next().unwrap().to_string();
             async move {
                 let resp = client.get(url).send().await?;
                 ensure!(resp.status().is_success(), "Bad http request");

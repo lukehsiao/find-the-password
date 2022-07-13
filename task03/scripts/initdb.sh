@@ -17,7 +17,7 @@ fi
 
 DB="${SQLITE_DB:=task03.db}"
 
-export DATABASE_URL=sqlite:${DB}
+export DATABASE_URL=sqlite://${DB}
 sqlx database create
 sqlx migrate run
 
