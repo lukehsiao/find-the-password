@@ -6,27 +6,27 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-axum = { version = "0.5.1", features = ["http2"] }
+axum = { version = "0.5.12", features = ["http2"] }
 chrono = "0.4.19"
-hyper = { version = "0.14.16", features = ["full"] }
-rand = { version = "0.8.4", features = ["std_rng"] }
-serde = { version = "1.0.135", features = ["derive"] }
-serde_json = "1.0.78"
-tokio = { version = "1.15.0", features = ["full"] }
-tower-http = { version = "0.2.1", features = ["trace", "compression-full"] }
-tracing = "0.1.29"
-tracing-subscriber = { version = "0.3.6", features = ["env-filter", "fmt"] }
+hyper = { version = "0.14.20", features = ["full"] }
+rand = { version = "0.8.5", features = ["std_rng"] }
+serde = { version = "1.0.139", features = ["derive"] }
+serde_json = "1.0.82"
+tokio = { version = "1.19.2", features = ["full"] }
+tower-http = { version = "0.3.4", features = ["trace", "compression-full"] }
+tracing = "0.1.35"
+tracing-subscriber = { version = "0.3.14", features = ["env-filter", "fmt"] }
 
 [dev-dependencies]
-anyhow = "1.0.53"
+anyhow = "1.0.58"
 env_logger = "0.9.0"
 futures = "0.3.21"
 mime = "0.3.16"
 num_cpus = "1.13.1"
-rayon = "1.5.1"
-reqwest = { version = "0.11.10", default-features = false, features = ["json", "rustls-tls"] }
-test-log = { version = "0.2.8", features = ["trace"] }
-tower = { version = "0.4.11", features = ["util"] }
+rayon = "1.5.3"
+reqwest = { version = "0.11.11", default-features = false, features = ["json", "rustls-tls"] }
+test-log = { version = "0.2.10", features = ["trace"] }
+tower = { version = "0.4.13", features = ["util"] }
 
 [[example]]
 name = "solution"
