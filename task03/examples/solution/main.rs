@@ -1,6 +1,6 @@
 use std::{
     io::{self, Read},
-    process,
+    process, thread,
 };
 
 use anyhow::{anyhow, ensure, Result};
@@ -21,7 +21,9 @@ async fn main() -> Result<()> {
 
     let client = ClientBuilder::new().build()?;
 
-    let num_cpus = num_cpus::get();
+    let num_cpus = thread::available_parallelism()
+        .map(|n| n.get())
+        .unwrap_or(1);
     info!("Num CPUs: {num_cpus}");
 
     let bodies = stream::iter(urls)
