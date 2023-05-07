@@ -75,6 +75,7 @@ use std::include_str;
 use anyhow::Context;
 use axum::{
     extract::Path,
+    handler::Handler,
     http::StatusCode,
     response::{Html, IntoResponse, Response},
     routing::{get, post, Router},
@@ -82,9 +83,10 @@ use axum::{
 };
 use chrono::Utc;
 use rand::{distributions::Alphanumeric, rngs::StdRng, Rng, SeedableRng};
-use secrecy::Secret;
 use serde::Serialize;
 use sqlx::{sqlite::SqlitePool, Acquire, FromRow};
+use tower_http::compression::CompressionLayer;
+use tracing::info;
 use uuid::Uuid;
 
 use crate::http::extractors::DatabaseConnection;
@@ -122,19 +124,19 @@ struct UserState {
     user_id: String,
     username: String,
     created_at: String,
-    solved: bool,
+    solved: i64,
     solved_at: Option<String>,
     hits_before_solved: i64,
     total_hits: i64,
     #[serde(skip)]
     seed: i64,
     #[serde(skip)]
-    secret: Secret<String>,
+    secret: String,
 }
 
-const NUM_PASSWORDS: usize = 50_000;
+pub const NUM_PASSWORDS: usize = 50_000;
 const PASS_LEN: usize = 32;
-const OFFSET: usize = 4000;
+const OFFSET: usize = 10_000;
 
 pub fn router(state: &SqlitePool) -> Router {
     // Each module is responsible for setting up its own routing, making the root module a lot
@@ -142,10 +144,15 @@ pub fn router(state: &SqlitePool) -> Router {
     Router::new()
         .route("/03", get(readme))
         .route("/03/u/:user", post(create_user).delete(del_user))
+        .route(
+            "/03/u/:user/passwords.txt",
+            get(get_passwords.layer(CompressionLayer::new())),
+        )
         .with_state(state.clone())
 }
 
 /// Provide the README to the root path
+#[tracing::instrument(name = "Getting the homepage", skip(_conn))]
 async fn readme(DatabaseConnection(_conn): DatabaseConnection) -> Html<&'static str> {
     let readme = include_str!("../../static/README.html");
     Html(readme)
@@ -195,7 +202,7 @@ async fn create_user(
         username,
         created_at,
         solved,
-        hit_before_solved,
+        hits_before_solved,
         total_hits,
         seed,
         secret
@@ -245,6 +252,7 @@ async fn create_user(
 /// ```
 /// curl -X DELETE http://localhost:3000/03/u/test_user
 /// ```
+#[tracing::instrument(name = "Deleting the user", skip(conn))]
 async fn del_user(
     Path(username): Path<String>,
     DatabaseConnection(conn): DatabaseConnection,
@@ -286,4 +294,46 @@ pub fn error_chain_fmt(
         current = cause.source();
     }
     Ok(())
+}
+
+/// Get a user-specific list of passwords.
+#[tracing::instrument(name = "Generating passwords for the user", skip(conn))]
+async fn get_passwords(
+    Path(username): Path<String>,
+    DatabaseConnection(conn): DatabaseConnection,
+) -> Result<String, StatusCode> {
+    let mut conn = conn;
+
+    if let Some(user) =
+        sqlx::query_as!(UserState, "SELECT * FROM user WHERE username = ?", username)
+            .fetch_optional(&mut conn)
+            .await
+            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+    {
+        let mut rng = StdRng::seed_from_u64(user.seed as u64);
+
+        let mut passwords: Vec<String> = (0..NUM_PASSWORDS)
+            .map(|_| {
+                (&mut rng)
+                    .sample_iter(&Alphanumeric)
+                    .take(PASS_LEN)
+                    .map(char::from)
+                    .collect()
+            })
+            .collect();
+
+        // The first password generated is the secret, so swap it later into the list.
+        let offset = user.seed as usize % (NUM_PASSWORDS - OFFSET) + OFFSET;
+        passwords.swap(0, offset);
+
+        info!(
+            user = %serde_json::to_string(&user).unwrap(),
+            offset = offset,
+            "Generated {NUM_PASSWORDS} passwords"
+        );
+
+        Ok(passwords.join("\n"))
+    } else {
+        Err(StatusCode::NOT_FOUND)
+    }
 }

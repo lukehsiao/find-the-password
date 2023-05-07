@@ -48,6 +48,13 @@ impl TestApp {
             .await
             .expect("Failed to execute request.")
     }
+    pub async fn get_passwords(&self, user: String) -> reqwest::Response {
+        self.api_client
+            .get(&format!("{}/03/u/{}/passwords.txt", &self.addr, user))
+            .send()
+            .await
+            .expect("Failed to execute request.")
+    }
 }
 
 async fn configure_database(config: &DatabaseConfig) -> SqlitePool {

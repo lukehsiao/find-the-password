@@ -1,7 +1,8 @@
-use anyhow::Result;
+use anyhow::{Context, Result};
 use pretty_assertions::assert_eq;
 
 use crate::helpers::spawn_app;
+use challenges::http::passwords::NUM_PASSWORDS;
 
 #[tokio::test]
 async fn post_returns_a_200_for_valid_username() -> Result<()> {
@@ -81,7 +82,7 @@ async fn create_returns_a_400_for_duplicate_username() -> Result<()> {
     let user = "test_user";
 
     // Act
-    let _ = app.post_user(user.into()).await;
+    app.post_user(user.into()).await;
     let response = app.post_user(user.into()).await;
 
     // Assert
@@ -138,6 +139,39 @@ async fn delete_unpersists_the_user() -> Result<()> {
         .context("Failed to fetch users.")?;
 
     assert!(saved.is_empty());
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn passwords_returns_a_200_for_valid_username() -> Result<()> {
+    // Arrange
+    let app = spawn_app().await?;
+    let user = "test_user";
+
+    // Act
+    app.post_user(user.into()).await;
+    let response = app.get_passwords(user.into()).await;
+
+    // Assert
+    assert_eq!(200, response.status().as_u16());
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn passwords_returns_a_the_right_number_of_entries() -> Result<()> {
+    // Arrange
+    let app = spawn_app().await?;
+    let user = "test_user";
+
+    // Act
+    app.post_user(user.into()).await;
+    let response = app.get_passwords(user.into()).await;
+
+    // Assert
+    let text = response.text().await?;
+    assert_eq!(text.lines().count(), NUM_PASSWORDS);
 
     Ok(())
 }
