@@ -258,6 +258,7 @@ dependencies = [
  "tower",
  "tower-http",
  "tracing",
+ "tracing-log",
  "tracing-subscriber",
  "uuid",
 ]
@@ -719,6 +720,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "69fe1fcf8b4278d860ad0548329f892a3631fb63f82574df68275f34cdbe0ffa"
 dependencies = [
  "hashbrown",
+]
+
+[[package]]
+name = "hdrhistogram"
+version = "7.5.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7f19b9f54f7c7f55e31401bb647626ce0cf0f67b0004982ce815b3ee72a02aa8"
+dependencies = [
+ "byteorder",
+ "num-traits",
 ]
 
 [[package]]
@@ -2015,9 +2026,14 @@ checksum = "b8fa9be0de6cf49e536ce1851f987bd21a43b771b09473c3549a6c853db37c1c"
 dependencies = [
  "futures-core",
  "futures-util",
+ "hdrhistogram",
+ "indexmap",
  "pin-project",
  "pin-project-lite",
+ "rand",
+ "slab",
  "tokio",
+ "tokio-util",
  "tower-layer",
  "tower-service",
  "tracing",
@@ -2040,9 +2056,11 @@ dependencies = [
  "pin-project-lite",
  "tokio",
  "tokio-util",
+ "tower",
  "tower-layer",
  "tower-service",
  "tracing",
+ "uuid",
 ]
 
 [[package]]

@@ -8,7 +8,12 @@ use anyhow::Result;
 use axum::{extract::Extension, Router};
 use sqlx::sqlite::SqlitePool;
 use tokio::signal;
-use tower_http::trace::TraceLayer;
+use tower::ServiceBuilder;
+use tower_http::{
+    request_id::MakeRequestUuid,
+    trace::{DefaultMakeSpan, DefaultOnResponse, TraceLayer},
+    ServiceBuilderExt,
+};
 use tracing::{debug, info};
 
 use crate::config::{Config, DatabaseConfig};
@@ -24,13 +29,6 @@ pub struct Application {
 impl Application {
     pub async fn build(config: Config) -> Result<Self> {
         let connection_pool = get_connection_pool(&config.database).await?;
-
-        // Embeds database migrations in the application binary so we ensure the database is
-        // migrated correctly on startup.
-        sqlx::migrate!()
-            .run(&connection_pool)
-            .await
-            .expect("Failed to migrate the database");
 
         let addr = format!("{}:{}", config.application.host, config.application.port);
         let listener = TcpListener::bind(&addr)?;
@@ -56,7 +54,18 @@ pub async fn run(
 ) -> Result<Pin<Box<dyn Future<Output = hyper::Result<()>> + Send>>> {
     // build our application with some routes
     let app = api_router()
-        .layer(TraceLayer::new_for_http())
+        .layer(
+            ServiceBuilder::new()
+                .set_x_request_id(MakeRequestUuid)
+                // log requests and responses
+                .layer(
+                    TraceLayer::new_for_http()
+                        .make_span_with(DefaultMakeSpan::new().include_headers(true))
+                        .on_response(DefaultOnResponse::new().include_headers(true)),
+                )
+                // propagate the header to the response before the response reaches `TraceLayer`
+                .propagate_x_request_id(),
+        )
         .layer(Extension(db_pool));
 
     Ok(Box::pin(

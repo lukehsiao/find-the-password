@@ -13,11 +13,16 @@ pub struct TestApp {
 }
 
 async fn configure_database(config: &DatabaseConfig) -> SqlitePool {
-    let pool = SqlitePool::connect_with(dbg!(config.with_db()))
+    let connection_pool = SqlitePool::connect_with(dbg!(config.with_db()))
         .await
         .expect("Failed to connect to sqlite");
+    // Migrate database
+    sqlx::migrate!("./migrations")
+        .run(&connection_pool)
+        .await
+        .expect("Failed to migrate the database");
 
-    pool
+    connection_pool
 }
 
 pub async fn spawn_app() -> Result<TestApp> {
