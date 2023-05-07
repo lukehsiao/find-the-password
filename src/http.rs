@@ -5,7 +5,7 @@
 use std::{future::Future, net::TcpListener, pin::Pin};
 
 use anyhow::Result;
-use axum::{extract::Extension, Router};
+use axum::Router;
 use sqlx::sqlite::SqlitePool;
 use tokio::signal;
 use tower::ServiceBuilder;
@@ -14,12 +14,14 @@ use tower_http::{
     trace::{DefaultMakeSpan, DefaultOnResponse, TraceLayer},
     ServiceBuilderExt,
 };
-use tracing::{debug, info, Level};
+use tracing::{info, Level};
 
 use crate::config::{Config, DatabaseConfig};
 
 // Modules introducing API routes
+pub mod extractors;
 pub mod healthz;
+pub mod passwords;
 
 pub struct Application {
     port: u16,
@@ -32,7 +34,7 @@ impl Application {
 
         let addr = format!("{}:{}", config.application.host, config.application.port);
         let listener = TcpListener::bind(&addr)?;
-        debug!("Listening on {}", addr);
+        info!("Listening on {}", addr);
         let port = listener.local_addr().unwrap().port();
         let server = run(listener, connection_pool).await?;
 
@@ -53,28 +55,26 @@ pub async fn run(
     db_pool: SqlitePool,
 ) -> Result<Pin<Box<dyn Future<Output = hyper::Result<()>> + Send>>> {
     // build our application with some routes
-    let app = api_router()
-        .layer(
-            ServiceBuilder::new()
-                .set_x_request_id(MakeRequestUuid)
-                // log requests and responses
-                .layer(
-                    TraceLayer::new_for_http()
-                        .make_span_with(
-                            DefaultMakeSpan::new()
-                                .include_headers(true)
-                                .level(Level::INFO),
-                        )
-                        .on_response(
-                            DefaultOnResponse::new()
-                                .include_headers(true)
-                                .level(Level::INFO),
-                        ),
-                )
-                // propagate the header to the response before the response reaches `TraceLayer`
-                .propagate_x_request_id(),
-        )
-        .layer(Extension(db_pool));
+    let app = api_router(&db_pool).layer(
+        ServiceBuilder::new()
+            .set_x_request_id(MakeRequestUuid)
+            // log requests and responses
+            .layer(
+                TraceLayer::new_for_http()
+                    .make_span_with(
+                        DefaultMakeSpan::new()
+                            .include_headers(true)
+                            .level(Level::INFO),
+                    )
+                    .on_response(
+                        DefaultOnResponse::new()
+                            .include_headers(true)
+                            .level(Level::INFO),
+                    ),
+            )
+            // propagate the header to the response before the response reaches `TraceLayer`
+            .propagate_x_request_id(),
+    );
 
     Ok(Box::pin(
         axum::Server::from_tcp(listener)?
@@ -86,9 +86,9 @@ pub async fn run(
 /// Helper function for generating our router.
 ///
 /// This makes it easier to unit test the route handlers.
-fn api_router() -> Router {
+fn api_router(state: &SqlitePool) -> Router {
     // This just follows the order that the modules were authored in, order doesn't matter.
-    healthz::router()
+    healthz::router().merge(passwords::router(state))
 }
 
 // Want to have a graceful shutdown.
@@ -117,7 +117,7 @@ async fn shutdown_handler() {
 pub async fn get_connection_pool(config: &DatabaseConfig) -> Result<SqlitePool> {
     let pool = SqlitePool::connect_lazy_with(config.with_db());
 
-    debug!("Connected to {:?}", &config);
+    info!("Connected to {:?}", &config);
 
     Ok(pool)
 }

@@ -2,3 +2,4 @@
 
 mod healthz;
 mod helpers;
+mod passwords;

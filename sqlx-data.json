@@ -1,0 +1,23 @@
+{
+  "db": "SQLite",
+  "0c70efd49f8190ef79d1b3b83d8917d77bbece237028725688fdcbc56e8f82c1": {
+    "describe": {
+      "columns": [],
+      "nullable": [],
+      "parameters": {
+        "Right": 8
+      }
+    },
+    "query": "\n    INSERT INTO user (\n        user_id,\n        username,\n        created_at,\n        solved,\n        hit_before_solved,\n        total_hits,\n        seed,\n        secret\n    )\n    VALUES ($1, $2, $3, $4, $5, $6, $7, $8)\n            "
+  },
+  "a70340e15f0e138aad5ab34e7a369fc2bbf8a426767d0267f576fdd1bd161cec": {
+    "describe": {
+      "columns": [],
+      "nullable": [],
+      "parameters": {
+        "Right": 1
+      }
+    },
+    "query": "DELETE FROM user WHERE username = ?"
+  }
+}

@@ -78,11 +78,6 @@ pub fn get_config() -> Result<Config, config::ConfigError> {
 }
 
 impl DatabaseConfig {
-    pub fn without_db(&self) -> SqliteConnectOptions {
-        // Defaults to sqlite::memory:
-        SqliteConnectOptions::new()
-    }
-
     pub fn with_db(&self) -> SqliteConnectOptions {
         SqliteConnectOptions::new()
             .filename(&self.uri)
