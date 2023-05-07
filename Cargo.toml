@@ -18,8 +18,8 @@ anyhow = "1.0.71"
 axum = { version = "0.6.18", features = ["http2"] }
 chrono = "0.4.24"
 config = { version = "0.13.3", features = ["toml"] }
-dotenv = "0.15.0"
 hyper = { version = "0.14.26", features = ["full"] }
+once_cell = "1.17.1"
 rand = { version = "0.8.5", features = ["std_rng"] }
 secrecy = { version = "0.8.0", features = ["serde"] }
 serde = { version = "1.0.162", features = ["derive"] }
@@ -31,19 +31,17 @@ tokio = { version = "1.28.0", features = ["full"] }
 tower = { version = "0.4.13", features = ["full"] }
 tower-http = { version = "0.4.0", features = ["trace", "compression-full", "request-id", "util"] }
 tracing = "0.1.37"
+tracing-bunyan-formatter = "0.3.7"
 tracing-log = "0.1.3"
-tracing-subscriber = { version = "0.3.17", features = ["env-filter", "fmt", "json"] }
+tracing-subscriber = { version = "0.3.17", features = ["env-filter", "registry", "fmt"] }
 uuid = { version = "1.3.2", features = ["v4", "serde"] }
 
 [dev-dependencies]
-env_logger = "0.10.0"
 futures = "0.3.28"
 mime = "0.3.17"
 pretty_assertions = "1.3.0"
 reqwest = { version = "0.11.17", default-features = false, features = ["json", "rustls-tls"] }
 tempfile = "3.5.0"
-test-log = { version = "0.2.11", features = ["trace"] }
-tower = { version = "0.4.13", features = ["util"] }
 
 [[example]]
 name = "passwords"

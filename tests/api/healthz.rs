@@ -1,10 +1,9 @@
 use anyhow::Result;
 use pretty_assertions::assert_eq;
-use test_log::test;
 
 use crate::helpers::spawn_app;
 
-#[test(tokio::test)]
+#[tokio::test]
 async fn healthz_works() -> Result<()> {
     let app = spawn_app().await?;
     let client = reqwest::Client::new();

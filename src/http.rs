@@ -14,7 +14,7 @@ use tower_http::{
     trace::{DefaultMakeSpan, DefaultOnResponse, TraceLayer},
     ServiceBuilderExt,
 };
-use tracing::{debug, info};
+use tracing::{debug, info, Level};
 
 use crate::config::{Config, DatabaseConfig};
 
@@ -60,8 +60,16 @@ pub async fn run(
                 // log requests and responses
                 .layer(
                     TraceLayer::new_for_http()
-                        .make_span_with(DefaultMakeSpan::new().include_headers(true))
-                        .on_response(DefaultOnResponse::new().include_headers(true)),
+                        .make_span_with(
+                            DefaultMakeSpan::new()
+                                .include_headers(true)
+                                .level(Level::INFO),
+                        )
+                        .on_response(
+                            DefaultOnResponse::new()
+                                .include_headers(true)
+                                .level(Level::INFO),
+                        ),
                 )
                 // propagate the header to the response before the response reaches `TraceLayer`
                 .propagate_x_request_id(),

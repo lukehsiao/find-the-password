@@ -95,7 +95,6 @@ mod tests {
     use super::*;
 
     use pretty_assertions::assert_eq;
-    use test_log::test;
 
     #[test]
     fn get_config_env_vars() -> Result<()> {
