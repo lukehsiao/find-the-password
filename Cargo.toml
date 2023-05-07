@@ -1,11 +1,11 @@
 [package]
-name = "task03"
-description = "A simple brute force password challenge."
+name = "challenges"
+description = "A collection of coding challenges."
 repository = "https://github.com/lukehsiao/code-challenges"
-homepage = "https://github.com/lukehsiao/code-challenges/tree/main/task03"
+homepage = "https://challenge.hsiao.dev"
 version = "0.1.0"
 edition = "2021"
-rust-version = "1.59"
+rust-version = "1.69"
 publish = false
 
 [lib]
@@ -44,5 +44,5 @@ test-log = { version = "0.2.11", features = ["trace"] }
 tower = { version = "0.4.13", features = ["util"] }
 
 [[example]]
-name = "solution"
-path = "examples/solution/main.rs"
+name = "passwords"
+path = "examples/passwords/main.rs"

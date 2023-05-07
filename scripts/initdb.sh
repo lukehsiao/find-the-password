@@ -15,7 +15,7 @@ if ! [ -x "$(command -v sqlx)" ]; then
   exit 1
 fi
 
-DB="${SQLITE_DB:=task03.db}"
+DB="${SQLITE_DB:=challenges.db}"
 
 export DATABASE_URL=sqlite://${DB}
 sqlx database create

@@ -68,7 +68,7 @@ pub fn get_config() -> Result<Config, config::ConfigError> {
         // Add in the current environment file
         .add_source(config::File::from(config_dir.join(env.as_str())))
         .add_source(
-            config::Environment::with_prefix("task03")
+            config::Environment::with_prefix("challenges")
                 .prefix_separator("_")
                 .separator("__"),
         )
@@ -99,13 +99,13 @@ mod tests {
 
     #[test]
     fn get_config_env_vars() -> Result<()> {
-        std::env::set_var("TASK03_APPLICATION__HOST", "127.0.0.1");
-        std::env::set_var("TASK03_APPLICATION__PORT", "8888");
+        std::env::set_var("CHALLENGES_APPLICATION__HOST", "127.0.0.1");
+        std::env::set_var("CHALLENGES_APPLICATION__PORT", "8888");
         let config = get_config()?;
         assert_eq!(config.application.host, "127.0.0.1");
         assert_eq!(config.application.port, 8888);
 
-        std::env::set_var("TASK03_DATABASE__URI", "test");
+        std::env::set_var("CHALLENGES_DATABASE__URI", "test");
         let config = get_config()?;
         assert_eq!(config.database.uri, "test");
         Ok(())

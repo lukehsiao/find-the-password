@@ -1,7 +1,7 @@
 use anyhow::Result;
 use sqlx::sqlite::SqlitePool;
 
-use task03::{
+use challenges::{
     config::{get_config, DatabaseConfig},
     http::{get_connection_pool, Application},
 };
