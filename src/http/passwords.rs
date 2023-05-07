@@ -84,7 +84,10 @@ use axum::{
 use chrono::Utc;
 use rand::{distributions::Alphanumeric, rngs::StdRng, Rng, SeedableRng};
 use serde::Serialize;
-use sqlx::{sqlite::SqlitePool, Acquire, FromRow};
+use sqlx::{
+    sqlite::{Sqlite, SqlitePool},
+    Acquire, FromRow, Transaction,
+};
 use tower_http::compression::CompressionLayer;
 use tracing::info;
 use uuid::Uuid;
@@ -99,6 +102,18 @@ pub enum UserError {
     UnexpectedError(#[from] anyhow::Error),
 }
 
+pub fn error_chain_fmt(
+    e: &impl std::error::Error,
+    f: &mut std::fmt::Formatter<'_>,
+) -> std::fmt::Result {
+    writeln!(f, "{}\n", e)?;
+    let mut current = e.source();
+    while let Some(cause) = current {
+        writeln!(f, "Caused by:\n\t{}", cause)?;
+        current = cause.source();
+    }
+    Ok(())
+}
 impl std::fmt::Debug for UserError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         error_chain_fmt(self, f)
@@ -119,19 +134,19 @@ impl IntoResponse for UserError {
 }
 
 #[derive(Debug, Serialize, FromRow, Clone)]
-struct UserState {
+pub struct UserState {
     #[serde(skip)]
-    user_id: String,
-    username: String,
-    created_at: String,
-    solved: i64,
-    solved_at: Option<String>,
-    hits_before_solved: i64,
-    total_hits: i64,
+    pub user_id: String,
+    pub username: String,
+    pub created_at: String,
+    pub solved: i64,
+    pub solved_at: Option<String>,
+    pub hits_before_solved: i64,
+    pub total_hits: i64,
     #[serde(skip)]
-    seed: i64,
+    pub seed: i64,
     #[serde(skip)]
-    secret: String,
+    pub secret: String,
 }
 
 pub const NUM_PASSWORDS: usize = 50_000;
@@ -148,6 +163,7 @@ pub fn router(state: &SqlitePool) -> Router {
             "/03/u/:user/passwords.txt",
             get(get_passwords.layer(CompressionLayer::new())),
         )
+        .route("/03/u/:user/check/:password", get(check_password))
         .with_state(state.clone())
 }
 
@@ -174,7 +190,7 @@ async fn create_user(
         .iter()
         .map(|x| i64::from(*x))
         .sum::<i64>()
-        + Utc::now().timestamp_millis() as i64;
+        + Utc::now().timestamp_millis();
 
     let rng = StdRng::seed_from_u64(seed as u64);
 
@@ -246,6 +262,35 @@ async fn create_user(
     Ok(Json(user_id))
 }
 
+#[tracing::instrument(
+    name = "Updating user details in the database",
+    skip(user, transaction)
+)]
+async fn update_user(
+    transaction: &mut Transaction<'_, Sqlite>,
+    user: &UserState,
+) -> Result<(), sqlx::Error> {
+    sqlx::query!(
+        r#"
+    UPDATE user SET
+        solved = $1,
+        solved_at = $2,
+        hits_before_solved = $3,
+        total_hits = $4
+    WHERE user_id = $5
+            "#,
+        user.solved,
+        user.solved_at,
+        user.hits_before_solved,
+        user.total_hits,
+        user.user_id
+    )
+    .execute(transaction)
+    .await?;
+
+    Ok(())
+}
+
 /// Delete a user.
 ///
 /// # Example
@@ -281,19 +326,6 @@ async fn del_user(
         .context("Failed to commit SQL transaction to add a new user.")?;
 
     Ok(StatusCode::OK)
-}
-
-pub fn error_chain_fmt(
-    e: &impl std::error::Error,
-    f: &mut std::fmt::Formatter<'_>,
-) -> std::fmt::Result {
-    writeln!(f, "{}\n", e)?;
-    let mut current = e.source();
-    while let Some(cause) = current {
-        writeln!(f, "Caused by:\n\t{}", cause)?;
-        current = cause.source();
-    }
-    Ok(())
 }
 
 /// Get a user-specific list of passwords.
@@ -333,6 +365,62 @@ async fn get_passwords(
         );
 
         Ok(passwords.join("\n"))
+    } else {
+        Err(StatusCode::NOT_FOUND)
+    }
+}
+/// Check a password for a given user.
+#[tracing::instrument(name = "Checking password for the user", skip(conn))]
+async fn check_password(
+    Path((username, password)): Path<(String, String)>,
+    DatabaseConnection(conn): DatabaseConnection,
+) -> Result<String, StatusCode> {
+    let mut conn = conn;
+
+    // Start a transaction, so that everything happens together.
+    let mut transaction = conn
+        .begin()
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    if let Some(mut user) =
+        sqlx::query_as!(UserState, "SELECT * FROM user WHERE username = ?", username)
+            .fetch_optional(&mut transaction)
+            .await
+            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+    {
+        // Track hits
+        if user.solved == 0 {
+            user.hits_before_solved += 1;
+        }
+        user.total_hits += 1;
+
+        // Respond
+        let result = match (user.solved, password == user.secret) {
+            (1, true) => Ok("True".to_string()),
+            (0, true) => {
+                user.solved = 1;
+                user.solved_at = Some(Utc::now().to_rfc3339());
+                info!(
+                    user = %serde_json::to_string(&user).unwrap(),
+                    secret = %user.secret,
+                    "We have a winner!",
+                );
+                Ok("True".to_string())
+            }
+            _ => Ok("False".to_string()),
+        };
+
+        update_user(&mut transaction, &user)
+            .await
+            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+        transaction
+            .commit()
+            .await
+            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+        result
     } else {
         Err(StatusCode::NOT_FOUND)
     }

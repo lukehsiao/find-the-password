@@ -1,5 +1,109 @@
 {
   "db": "SQLite",
+  "2270a2e3f0619852d4ca7f17275dd1e5393467df83cdb4054b9a953cde0334ba": {
+    "describe": {
+      "columns": [
+        {
+          "name": "user_id",
+          "ordinal": 0,
+          "type_info": "Text"
+        },
+        {
+          "name": "username",
+          "ordinal": 1,
+          "type_info": "Text"
+        },
+        {
+          "name": "created_at",
+          "ordinal": 2,
+          "type_info": "Text"
+        },
+        {
+          "name": "solved",
+          "ordinal": 3,
+          "type_info": "Int64"
+        },
+        {
+          "name": "solved_at",
+          "ordinal": 4,
+          "type_info": "Text"
+        },
+        {
+          "name": "hits_before_solved",
+          "ordinal": 5,
+          "type_info": "Int64"
+        },
+        {
+          "name": "total_hits",
+          "ordinal": 6,
+          "type_info": "Int64"
+        },
+        {
+          "name": "seed",
+          "ordinal": 7,
+          "type_info": "Int64"
+        },
+        {
+          "name": "secret",
+          "ordinal": 8,
+          "type_info": "Text"
+        }
+      ],
+      "nullable": [
+        false,
+        false,
+        false,
+        false,
+        true,
+        false,
+        false,
+        false,
+        false
+      ],
+      "parameters": {
+        "Right": 0
+      }
+    },
+    "query": "SELECT * FROM user;"
+  },
+  "2e9c6eca19273f0343028af3282443a6585db93f1ff478949efdfcc4e6fa8f3d": {
+    "describe": {
+      "columns": [
+        {
+          "name": "secret",
+          "ordinal": 0,
+          "type_info": "Text"
+        }
+      ],
+      "nullable": [
+        false
+      ],
+      "parameters": {
+        "Right": 0
+      }
+    },
+    "query": "SELECT secret FROM user;"
+  },
+  "329810ae76a611fbbec97cda336d1ac105a09bf8b6762937758400f86d6e6738": {
+    "describe": {
+      "columns": [],
+      "nullable": [],
+      "parameters": {
+        "Right": 0
+      }
+    },
+    "query": "ALTER TABLE user DROP COLUMN solved;"
+  },
+  "5be8d260f955c9e387de2437f75996fde36b359258f80d2de2395494fffedf31": {
+    "describe": {
+      "columns": [],
+      "nullable": [],
+      "parameters": {
+        "Right": 5
+      }
+    },
+    "query": "\n    UPDATE user SET\n        solved = $1,\n        solved_at = $2,\n        hits_before_solved = $3,\n        total_hits = $4\n    WHERE user_id = $5\n            "
+  },
   "a5b32ad8cb662ae91cb22ba126282437cd97c0c8ce07069a675832edb8824b10": {
     "describe": {
       "columns": [],
@@ -85,5 +189,23 @@
       }
     },
     "query": "SELECT * FROM user WHERE username = ?"
+  },
+  "ee90acb518ab60d87589903de45c4bbdb6f1527b79f8a2cb5af526ad741f074d": {
+    "describe": {
+      "columns": [
+        {
+          "name": "username",
+          "ordinal": 0,
+          "type_info": "Text"
+        }
+      ],
+      "nullable": [
+        false
+      ],
+      "parameters": {
+        "Right": 0
+      }
+    },
+    "query": "SELECT username FROM user;"
   }
 }
