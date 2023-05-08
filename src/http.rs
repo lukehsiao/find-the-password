@@ -6,7 +6,7 @@ use std::{future::Future, net::TcpListener, pin::Pin};
 
 use anyhow::Result;
 use axum::Router;
-use sqlx::sqlite::SqlitePool;
+use sqlx::sqlite::{SqlitePool, SqlitePoolOptions};
 use tokio::signal;
 use tower::ServiceBuilder;
 use tower_http::{
@@ -115,7 +115,9 @@ async fn shutdown_handler() {
 
 /// Utility to grab a connection pool
 pub async fn get_connection_pool(config: &DatabaseConfig) -> Result<SqlitePool> {
-    let pool = SqlitePool::connect_lazy_with(config.with_db());
+    let pool = SqlitePoolOptions::new()
+        .max_connections(1)
+        .connect_lazy_with(config.with_db());
 
     info!("Connected to {:?}", &config);
 

@@ -130,7 +130,11 @@ impl Drop for TestApp {
         std::thread::spawn(move || {
             let rt = Runtime::new().unwrap();
             rt.block_on(async {
-                fs::remove_file(db_name).expect("Failed to delete the sqlite db");
+                fs::remove_file(db_name.clone()).expect("Failed to delete the sqlite db");
+                fs::remove_file(db_name.clone().replace(".db", ".db-shm"))
+                    .expect("Failed to delete the sqlite db");
+                fs::remove_file(db_name.clone().replace(".db", ".db-wal"))
+                    .expect("Failed to delete the sqlite db");
                 let _ = tx.send(());
             })
         });

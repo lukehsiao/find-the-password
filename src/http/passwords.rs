@@ -92,7 +92,7 @@ use sqlx::{
     Acquire, FromRow, Transaction,
 };
 use tower_http::compression::CompressionLayer;
-use tracing::info;
+use tracing::{error, info};
 use uuid::Uuid;
 
 use crate::http::extractors::DatabaseConnection;
@@ -400,7 +400,7 @@ async fn check_password(
 
         // Respond
         let result = match (user.solved, password == user.secret) {
-            (1, true) => Ok("True".to_string()),
+            (1, true) => "True",
             (0, true) => {
                 user.solved = 1;
                 user.solved_at = Some(Utc::now().to_rfc3339());
@@ -409,21 +409,24 @@ async fn check_password(
                     secret = %user.secret,
                     "We have a winner!",
                 );
-                Ok("True".to_string())
+                "True"
             }
-            _ => Ok("False".to_string()),
+            _ => "False",
         };
 
-        update_user(&mut transaction, &user)
-            .await
-            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        update_user(&mut transaction, &user).await.map_err(|e| {
+            error!("{:?}", e);
 
-        transaction
-            .commit()
-            .await
-            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
 
-        result
+        transaction.commit().await.map_err(|e| {
+            error!("{:?}", e);
+
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+
+        Ok(result.to_string())
     } else {
         Err(StatusCode::NOT_FOUND)
     }

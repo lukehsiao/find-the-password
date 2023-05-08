@@ -2,7 +2,7 @@
 use anyhow::Result;
 use serde::Deserialize;
 use serde_aux::field_attributes::deserialize_number_from_string;
-use sqlx::sqlite::SqliteConnectOptions;
+use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqliteSynchronous};
 
 #[derive(Deserialize, Debug, Clone)]
 pub struct Config {
@@ -82,6 +82,8 @@ impl DatabaseConfig {
         SqliteConnectOptions::new()
             .filename(&self.uri)
             .create_if_missing(true)
+            .journal_mode(SqliteJournalMode::Wal)
+            .synchronous(SqliteSynchronous::Normal)
     }
 }
 
