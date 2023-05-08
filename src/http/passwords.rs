@@ -3,37 +3,40 @@
 //! The goal of this challenge is to learn simple brute-force automation
 //! running against a real web server.
 //!
-//!//! ## How to Play
+//! ## How to Play
 //!
 //! The list of passwords is available at:
-//!
+//! ```text
 //! https://challenge.hsiao.dev/03/<name>/passwords.txt
+//! ```
 //!
 //! Where `<name>` is your username (e.g., `alexh`).
 //!
 //! You can check if a password is the one I lost by checking the website with it in the URL following this template:
-//!
+//! ```text
 //! https://challenge.hsiao.dev/03/<name>/check/<password>
+//! ```
 //!
 //! For example, if I wanted to test the password: `testpass`, I would visit
-//!
+//! ```text
 //! https://challenge.hsiao.dev/03/luke/check/testpass
+//! ```
 //!
 //! And I’d see the response:
 //!
-//! ```
+//! ```text
 //! False
-//! ``
+//! ```
 //!
 //! If I get the right password, I’d see:
 //!
-//! ```
+//! ```text
 //! True
 //! ```
 //!
 //! You can check some stats about everyone's attempts by visiting
 //!
-//! ```
+//! ```text
 //! https://challenge.hsiao.dev/03/status
 //! ```
 //!
@@ -60,7 +63,7 @@
 //!
 //! ## Running the Parallelized Rust Example Solution
 //!
-//! ```
+//! ```bash
 //! $ curl -L https://challenge.hsiao.dev/03/luke/passwords.txt | cargo run --release --example=solution --
 //! ```
 //!
