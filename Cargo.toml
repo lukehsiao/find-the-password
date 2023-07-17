@@ -32,7 +32,7 @@ tokio = { version = "1.29.1", features = ["full"] }
 tower = { version = "0.4.13", features = ["full"] }
 tower-http = { version = "0.4.1", features = ["trace", "compression-full", "request-id", "util"] }
 tracing = "0.1.37"
-tracing-bunyan-formatter = "0.3.7"
+tracing-bunyan-formatter = "0.3.8"
 tracing-log = "0.1.3"
 tracing-subscriber = { version = "0.3.17", features = ["env-filter", "registry", "fmt"] }
 uuid = { version = "1.4.0", features = ["v4", "serde"] }
