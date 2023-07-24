@@ -16,7 +16,7 @@ path = "src/lib.rs"
 
 [dependencies]
 anyhow = "1.0.72"
-axum = { version = "0.6.18", features = ["http2"] }
+axum = { version = "0.6.19", features = ["http2"] }
 chrono = { version = "0.4.26", default-features = false, features = ["clock"] }
 config = { version = "0.13.3", features = ["toml"] }
 hyper = { version = "0.14.27", features = ["full"] }
