@@ -30,7 +30,7 @@ sqlx = { version = "0.6.3", features = ["runtime-tokio-rustls", "sqlite", "chron
 thiserror = "1.0.43"
 tokio = { version = "1.29.1", features = ["full"] }
 tower = { version = "0.4.13", features = ["full"] }
-tower-http = { version = "0.4.1", features = ["trace", "compression-full", "request-id", "util"] }
+tower-http = { version = "0.4.3", features = ["trace", "compression-full", "request-id", "util"] }
 tracing = "0.1.37"
 tracing-bunyan-formatter = "0.3.8"
 tracing-log = "0.1.3"
