@@ -18,7 +18,7 @@ path = "src/lib.rs"
 anyhow = "1.0.75"
 axum = { version = "0.6.20", features = ["http2"] }
 chrono = { version = "0.4.31", default-features = false, features = ["clock"] }
-config = { version = "0.13.3", features = ["toml"] }
+config = { version = "0.13.4", features = ["toml"] }
 hyper = { version = "0.14.27", features = ["full"] }
 once_cell = "1.18.0"
 rand = { version = "0.8.5", features = ["std_rng"] }
