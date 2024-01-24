@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "\n    UPDATE user SET\n        solved = $1,\n        solved_at = $2,\n        hits_before_solved = $3,\n        total_hits = $4\n    WHERE user_id = $5\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 5
+    },
+    "nullable": []
+  },
+  "hash": "5be8d260f955c9e387de2437f75996fde36b359258f80d2de2395494fffedf31"
+}
