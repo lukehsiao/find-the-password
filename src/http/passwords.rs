@@ -180,7 +180,7 @@ async fn readme(DatabaseConnection(_conn): DatabaseConnection) -> Html<&'static 
 /// Create a new user.
 ///
 /// # Example
-/// ```
+/// ```bash
 /// curl -X POST http://localhost:3000/03/u/test_user
 /// ```
 #[tracing::instrument(name = "Adding a new user", skip(conn))]
@@ -237,7 +237,7 @@ async fn create_user(
         seed,
         secret
     )
-    .execute(&mut transaction)
+    .execute(&mut *transaction)
     .await
     {
         Ok(_) => (),
@@ -288,7 +288,7 @@ async fn update_user(
         user.total_hits,
         user.user_id
     )
-    .execute(transaction)
+    .execute(&mut **transaction)
     .await?;
 
     Ok(())
@@ -297,7 +297,7 @@ async fn update_user(
 /// Delete a user.
 ///
 /// # Example
-/// ```
+/// ```bash
 /// curl -X DELETE http://localhost:3000/03/u/test_user
 /// ```
 #[tracing::instrument(name = "Deleting the user", skip(conn))]
@@ -314,7 +314,7 @@ async fn del_user(
         .context("Failed to acquire a database connection from the pool")?;
 
     let result = sqlx::query!("DELETE FROM user WHERE username = ?", username)
-        .execute(&mut transaction)
+        .execute(&mut *transaction)
         .await
         .context("Failed SQLx query.")?;
 
@@ -341,7 +341,7 @@ async fn get_passwords(
 
     if let Some(user) =
         sqlx::query_as!(UserState, "SELECT * FROM user WHERE username = ?", username)
-            .fetch_optional(&mut conn)
+            .fetch_optional(&mut *conn)
             .await
             .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
     {
@@ -388,7 +388,7 @@ async fn check_password(
 
     if let Some(mut user) =
         sqlx::query_as!(UserState, "SELECT * FROM user WHERE username = ?", username)
-            .fetch_optional(&mut transaction)
+            .fetch_optional(&mut *transaction)
             .await
             .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
     {

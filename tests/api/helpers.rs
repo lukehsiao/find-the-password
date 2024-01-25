@@ -101,7 +101,7 @@ pub async fn spawn_app() -> Result<TestApp> {
         .await
         .expect("Failed to build application.");
     let app_port = app.port();
-    let _ = tokio::spawn(app.run_until_stopped());
+    tokio::spawn(app.run_until_stopped());
 
     let api_client = reqwest::Client::builder()
         .redirect(reqwest::redirect::Policy::none())
