@@ -2,12 +2,15 @@
 //!
 //! The API routes and implementions exist in child modules of this.
 
-use std::{future::Future, net::TcpListener, pin::Pin};
+use std::{
+    future::{Future, IntoFuture},
+    pin::Pin,
+};
 
 use anyhow::Result;
 use axum::Router;
 use sqlx::sqlite::{SqlitePool, SqlitePoolOptions};
-use tokio::signal;
+use tokio::{net::TcpListener, signal};
 use tower::ServiceBuilder;
 use tower_http::{
     request_id::MakeRequestUuid,
@@ -25,7 +28,7 @@ pub mod passwords;
 
 pub struct Application {
     port: u16,
-    server: Pin<Box<dyn Future<Output = hyper::Result<()>> + Send>>,
+    server: Pin<Box<dyn Future<Output = std::io::Result<()>> + Send>>,
 }
 
 impl Application {
@@ -33,7 +36,7 @@ impl Application {
         let connection_pool = get_connection_pool(&config.database).await?;
 
         let addr = format!("{}:{}", config.application.host, config.application.port);
-        let listener = TcpListener::bind(&addr)?;
+        let listener = TcpListener::bind(&addr).await?;
         info!("Listening on {}", addr);
         let port = listener.local_addr().unwrap().port();
         let server = run(listener, connection_pool).await?;
@@ -45,7 +48,7 @@ impl Application {
         self.port
     }
 
-    pub async fn run_until_stopped(self) -> Result<(), hyper::Error> {
+    pub async fn run_until_stopped(self) -> Result<(), std::io::Error> {
         self.server.await
     }
 }
@@ -53,7 +56,7 @@ impl Application {
 pub async fn run(
     listener: TcpListener,
     db_pool: SqlitePool,
-) -> Result<Pin<Box<dyn Future<Output = hyper::Result<()>> + Send>>> {
+) -> Result<Pin<Box<dyn Future<Output = std::io::Result<()>> + Send>>> {
     // build our application with some routes
     let app = api_router(&db_pool).layer(
         ServiceBuilder::new()
@@ -77,9 +80,9 @@ pub async fn run(
     );
 
     Ok(Box::pin(
-        axum::Server::from_tcp(listener)?
-            .serve(app.into_make_service())
-            .with_graceful_shutdown(shutdown_handler()),
+        axum::serve(listener, app)
+            .with_graceful_shutdown(shutdown_handler())
+            .into_future(),
     ))
 }
 
