@@ -1,9 +1,0 @@
-# This section may be helpful if you get errors with ports 2019 (admin) and 80 (auto_https)
-#{
-#  admin off
-#  auto_https disable_redirects
-#}
-
-challenge.hsiao.dev {
-    reverse_proxy localhost:3000
-}
