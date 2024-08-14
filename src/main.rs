@@ -1,43 +1,58 @@
-use tokio::{self, signal};
-use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
-
 #[cfg(feature = "ssr")]
 #[tokio::main]
 async fn main() {
+    use std::sync::Arc;
+
+    use axum::Router;
+    use leptos::*;
+    use leptos_axum::{generate_route_list, LeptosRoutes};
+    use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
+
+    use challenge::{app::*, fileserv::file_and_error_handler, state::AppState, user::UserMap};
+
     // Enable tracing.
     tracing_subscriber::registry()
         .with(
             tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| "code-challenges=debug,tower_http=debug,axum=trace".into()),
+                .unwrap_or_else(|_| "challenge=debug,tower_http=debug,axum=trace".into()),
         )
         .with(tracing_subscriber::fmt::layer())
         .init();
 
-    use axum::Router;
-    use code_challenges::app::*;
-    use leptos::prelude::*;
-    use leptos_axum::{generate_route_list, LeptosRoutes};
+    console_error_panic_hook::set_once();
 
-    let conf = get_configuration(None).unwrap();
-    let addr = conf.leptos_options.site_addr;
+    // Setting get_configuration(None) means we'll be using cargo-leptos's env values
+    // For deployment these variables are:
+    // <https://github.com/leptos-rs/start-axum#executing-a-server-on-a-remote-machine-without-the-toolchain>
+    // Alternately a file can be specified such as Some("Cargo.toml")
+    // The file would need to be included with the executable when moved to deployment
+    let conf = get_configuration(None).await.unwrap();
     let leptos_options = conf.leptos_options;
-    // Generate the list of routes in your Leptos App
+    let addr = leptos_options.site_addr;
     let routes = generate_route_list(App);
+    let app_state = AppState {
+        leptos_options,
+        usermap: Arc::new(UserMap::new()),
+        leaderboard: Arc::new(Vec::new()),
+    };
 
+    // build our application with a route
     let app = Router::new()
-        .leptos_routes(&leptos_options, routes, {
-            let leptos_options = leptos_options.clone();
-            move || shell(leptos_options.clone())
-        })
-        .fallback(leptos_axum::file_and_error_handler(shell))
-        .with_state(leptos_options);
+        .leptos_routes_with_context(
+            &app_state,
+            routes,
+            {
+                let app_state = app_state.clone();
+                move || provide_context(app_state.clone())
+            },
+            App,
+        )
+        .fallback(file_and_error_handler)
+        .with_state(app_state);
 
-    // run our app with hyper
-    // `axum::Server` is a re-export of `hyper::Server`
-    log!("listening on http://{}", &addr);
     let listener = tokio::net::TcpListener::bind(&addr).await.unwrap();
-    // Run the server with graceful shutdown
-    axum::serve(listener, app)
+    logging::log!("listening on http://{}", &addr);
+    axum::serve(listener, app.into_make_service())
         .with_graceful_shutdown(shutdown_signal())
         .await
         .unwrap();
@@ -46,11 +61,13 @@ async fn main() {
 #[cfg(not(feature = "ssr"))]
 pub fn main() {
     // no client-side main function
-    // unless we want this to work with e.g., Trunk for pure client-side testing
+    // unless we want this to work with e.g., Trunk for a purely client-side app
     // see lib.rs for hydration function instead
 }
 
+#[cfg(feature = "ssr")]
 async fn shutdown_signal() {
+    use tokio::signal;
     let ctrl_c = async {
         signal::ctrl_c()
             .await
