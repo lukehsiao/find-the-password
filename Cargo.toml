@@ -1,35 +1,34 @@
 [package]
-name = "code-challenges"
-description = "A collection of coding challenges."
-repository = "https://github.com/lukehsiao/code-challenges"
-homepage = "https://challenge.hsiao.dev"
-license = "BlueOak-1.0.0"
+name = "challenge"
 version = "0.1.0"
 edition = "2021"
-authors = ["Luke Hsiao <luke@hsiao.dev>"]
-publish = false
 
 [lib]
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-axum = { version = "0.7", optional = true }
+anyhow = "1.0.86"
+axum = { version = "0.7", optional = true, features = ["macros"] }
 console_error_panic_hook = "0.1"
-leptos = { version = "0.7.0-beta" }
-leptos_axum = { version = "0.7.0-beta", optional = true }
-leptos_meta = { version = "0.7.0-beta" }
-leptos_router = { version = "0.7.0-beta" }
-tokio = { version = "1", features = ["full", "rt-multi-thread"], optional = true }
+dashmap = "6.0.1"
+http = "1"
+jiff = { version = "0.1.5", features = ["serde"] }
+leptos = { version = "0.6" }
+leptos_axum = { version = "0.6", optional = true }
+leptos_meta = { version = "0.6" }
+leptos_router = { version = "0.6" }
+rand = { version = "0.8.5", default-features = false, features = ["std_rng"] }
+serde = { version = "1.0.208", features = ["derive"] }
+thiserror = "1"
+tokio = { version = "1", features = ["rt-multi-thread", "signal"], optional = true }
 tower = { version = "0.4", optional = true }
 tower-http = { version = "0.5", features = ["fs"], optional = true }
-wasm-bindgen = "=0.2.92"
-thiserror = "1"
 tracing = { version = "0.1", optional = true }
-http = "1"
 tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
+wasm-bindgen = "=0.2.93"
 
 [features]
-hydrate = ["leptos/hydrate"]
+hydrate = ["leptos/hydrate", "leptos_meta/hydrate", "leptos_router/hydrate"]
 ssr = [
     "dep:axum",
     "dep:tokio",
@@ -52,7 +51,7 @@ panic = "abort"
 
 [package.metadata.leptos]
 # The name used by wasm-bindgen/cargo-leptos for the JS/WASM bundle. Defaults to the crate name
-output-name = "code-challenges"
+output-name = "challenge"
 
 # The site root folder is where cargo-leptos generate all output. WARNING: all content of this folder will be erased on a rebuild. Use it in your server setup.
 site-root = "target/site"
