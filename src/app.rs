@@ -1,7 +1,9 @@
-use crate::error_template::{AppError, ErrorTemplate};
+use jiff::Timestamp;
 use leptos::*;
 use leptos_meta::*;
 use leptos_router::*;
+
+use crate::error_template::{AppError, ErrorTemplate};
 
 /// Add a new user to the user map.
 #[server(AddUser)]
@@ -25,6 +27,14 @@ pub async fn add_user(username: String) -> Result<(), ServerFnError> {
         leptos_axum::redirect("/");
         Ok(())
     }
+}
+
+/// Read the current leaderboard.
+#[server(GetLeaders)]
+pub async fn get_leaders() -> Result<Vec<(String, Timestamp)>, ServerFnError> {
+    use crate::state::AppState;
+    let state = expect_context::<AppState>();
+    Ok((*state.leaderboard).clone())
 }
 
 #[component]
@@ -117,7 +127,7 @@ fn HomePage() -> impl IntoView {
                     </p>
                 </div>
                 <ActionForm action=add_user>
-                    <input type="text" placeholder="Your username" name="username" required/>
+                    <input type="text" placeholder="Your username" name="username" required />
                     <input type="submit" value="Join challenge" />
                 </ActionForm>
             }
@@ -130,5 +140,20 @@ fn HomePage() -> impl IntoView {
         </ErrorBoundary>
 
         // TODO: Show the leaderboard
+        {
+            view! {
+                // TODO: Don't know how to read from the state here
+                <h2>Leaderboard</h2>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>"Username"</th>
+                            <th>"Solved Time"</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            }
+        }
     }
 }
