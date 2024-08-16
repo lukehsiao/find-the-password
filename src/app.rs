@@ -6,6 +6,11 @@ use leptos_router::*;
 /// Add a new user to the user map.
 #[server(AddUser)]
 pub async fn add_user(username: String) -> Result<(), ServerFnError> {
+    if username.is_empty() {
+        return Err(ServerFnError::ServerError(
+            "username must not just be whitespace".to_string(),
+        ));
+    }
     use crate::state::AppState;
     use crate::user::User;
     let state = expect_context::<AppState>();
@@ -53,6 +58,7 @@ pub fn App() -> impl IntoView {
 #[component]
 fn HomePage() -> impl IntoView {
     let add_user = Action::<AddUser, _>::server();
+    let value = Signal::derive(move || add_user.value().get().unwrap_or_else(|| Ok(())));
 
     view! {
         <h1 id="finding-the-password">"Finding the password"</h1>
@@ -90,13 +96,39 @@ fn HomePage() -> impl IntoView {
         </ul>
         <h2 id="lets-go">"Let's Go!"</h2>
 
-        // TODO: How do we show the error boundary if the username already exists?
-        <ActionForm action=add_user>
-            <input type="text" placeholder="Your username" name="username" />
-            <input type="submit" value="Join challenge" />
-        </ActionForm>
+        <ErrorBoundary fallback=move |error| {
+            view! {
+                <div class="error">
+                    <p>
+                        {move || {
+                            format!(
+                                "{}",
+                                error
+                                    .get()
+                                    .into_iter()
+                                    .next()
+                                    .unwrap()
+                                    .1
+                                    .to_string()
+                                    .strip_prefix("error running server function: ")
+                                    .unwrap(),
+                            )
+                        }}
+                    </p>
+                </div>
+                <ActionForm action=add_user>
+                    <input type="text" placeholder="Your username" name="username" required/>
+                    <input type="submit" value="Join challenge" />
+                </ActionForm>
+            }
+        }>
+            <div>{value}</div>
+            <ActionForm action=add_user>
+                <input type="text" placeholder="Your username" name="username" required />
+                <input type="submit" value="Join challenge" />
+            </ActionForm>
+        </ErrorBoundary>
 
-        // TODO: Show a leaderboard for people that completed the challenge
-
+        // TODO: Show the leaderboard
     }
 }
