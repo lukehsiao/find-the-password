@@ -9,7 +9,10 @@ async fn main() {
     use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
     use challenge::{
-        app::*, fileserv::file_and_error_handler, http::check_password, state::AppState,
+        app::*,
+        fileserv::file_and_error_handler,
+        http::{check_password, get_passwords},
+        state::AppState,
         user::UserMap,
     };
 
@@ -42,6 +45,7 @@ async fn main() {
     // build our application with a route
     let app = Router::new()
         .route("/u/:user/check/:password", routing::get(check_password))
+        .route("/u/:user/passwords.txt", routing::get(get_passwords))
         .leptos_routes_with_context(
             &app_state,
             routes,
