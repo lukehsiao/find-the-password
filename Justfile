@@ -23,9 +23,17 @@ link-check:
 test:
 	cargo nextest run
 
+# Run the release binary
+run addr="0.0.0.0:3000":
+	LEPTOS_SITE_ADDR={{addr}} {{justfile_directory()}}/app/challenge
+
 # Build the release binary
 build:
 	cargo leptos build --release
+	mkdir -p {{justfile_directory()}}/app
+	cp {{justfile_directory()}}/target/release/challenge {{justfile_directory()}}/app/
+	cp -r {{justfile_directory()}}/target/site {{justfile_directory()}}/app/site
+	cp {{justfile_directory()}}/Cargo.toml {{justfile_directory()}}/app/
 
 # Format all sources, leptos-style
 fmt:
