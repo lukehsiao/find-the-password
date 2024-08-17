@@ -1,19 +1,16 @@
 #[cfg(feature = "ssr")]
 #[tokio::main]
 async fn main() {
-    use std::sync::Arc;
+    use std::sync::{Arc, Mutex};
 
-    use axum::Router;
-    use jiff::ToSpan;
+    use axum::{routing, Router};
     use leptos::*;
     use leptos_axum::{generate_route_list, LeptosRoutes};
     use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
     use challenge::{
-        app::*,
-        fileserv::file_and_error_handler,
-        state::AppState,
-        user::{Completion, UserMap},
+        app::*, fileserv::file_and_error_handler, http::check_password, state::AppState,
+        user::UserMap,
     };
 
     // Enable tracing.
@@ -39,15 +36,12 @@ async fn main() {
     let app_state = AppState {
         leptos_options,
         usermap: Arc::new(UserMap::new()),
-        leaderboard: Arc::new(vec![Completion {
-            username: "test".to_string(),
-            time_to_solve: 4_i32.hour().minutes(30),
-            attempts_to_solve: 50000,
-        }]),
+        leaderboard: Arc::new(Mutex::new(vec![])),
     };
 
     // build our application with a route
     let app = Router::new()
+        .route("/u/:user/check/:password", routing::get(check_password))
         .leptos_routes_with_context(
             &app_state,
             routes,

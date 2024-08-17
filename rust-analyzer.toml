@@ -1,2 +1,5 @@
 [rustfmt] 
 overrideCommand = ["leptosfmt", "--stdin", "--rustfmt"]
+
+[cargo]
+features = ["ssr"]

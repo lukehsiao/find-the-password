@@ -77,7 +77,8 @@ pub async fn get_user_passwords(username: String) -> Result<String, ServerFnErro
 pub async fn get_leaders() -> Result<Vec<Completion>, ServerFnError> {
     use crate::state::AppState;
     let state = expect_context::<AppState>();
-    Ok((*state.leaderboard).clone())
+    let leaders = (*state.leaderboard).lock().unwrap().clone();
+    Ok(leaders)
 }
 
 #[component]
