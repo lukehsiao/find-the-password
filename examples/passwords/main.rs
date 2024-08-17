@@ -16,7 +16,7 @@ async fn main() -> Result<()> {
     io::stdin().read_to_string(&mut input)?;
     let urls: Vec<String> = input
         .lines()
-        .map(|pass| format!("https://challenge.hsiao.dev/03/u/luke/check/{pass}"))
+        .map(|pass| format!("http://localhost:3000/u/luke/check/{pass}"))
         .collect();
 
     let client = ClientBuilder::new().build()?;
