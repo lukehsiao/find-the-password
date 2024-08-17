@@ -6,6 +6,7 @@ async fn main() {
     use axum::{routing, Router};
     use leptos::*;
     use leptos_axum::{generate_route_list, LeptosRoutes};
+    use tower_http::compression::CompressionLayer;
     use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
     use challenge::{
@@ -56,7 +57,8 @@ async fn main() {
             App,
         )
         .fallback(file_and_error_handler)
-        .with_state(app_state);
+        .with_state(app_state)
+        .layer(CompressionLayer::new());
 
     let listener = tokio::net::TcpListener::bind(&addr).await.unwrap();
     logging::log!("listening on http://{}", &addr);
