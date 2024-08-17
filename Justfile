@@ -23,6 +23,14 @@ link-check:
 test:
 	cargo nextest run
 
+# Build the release binary
+build:
+	cargo leptos build --release
+
+# Format all sources, leptos-style
+fmt:
+	leptosfmt {{justfile_directory()}}
+
 # Sets up a watcher that lints, tests, and builds
 watch:
 	# cargo watch -x 'clippy --all-targets --all-features -- -D warnings' -x 'nextest run' -x 'build --release' 
