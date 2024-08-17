@@ -1,8 +1,8 @@
 use dashmap::DashMap;
-use jiff::Timestamp;
+use jiff::{Span, Timestamp};
+use leptos::tracing::info;
 use rand::{distributions::Alphanumeric, rngs::StdRng, Rng, SeedableRng};
 use serde::{Deserialize, Serialize};
-use tracing::info;
 
 const NUM_PASSWORDS: usize = 60_000;
 const PASS_LEN: usize = 32;
@@ -18,11 +18,18 @@ pub struct User {
     pub created_at: Timestamp,
     pub solved_at: Option<Timestamp>,
     pub hits_before_solved: u64,
-    pub total_hits: u64,
     #[serde(skip)]
     pub seed: i64,
     #[serde(skip)]
     pub secret: String,
+}
+
+/// Represents an entry in the leaderboard
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct Completion {
+    pub username: String,
+    pub time_to_solve: Span,
+    pub attempts_to_solve: u64,
 }
 
 impl User {
@@ -47,7 +54,6 @@ impl User {
             created_at: Timestamp::now(),
             solved_at: None,
             hits_before_solved: 0,
-            total_hits: 0,
             seed,
             secret,
         }
@@ -70,7 +76,6 @@ impl User {
         let offset = self.seed as usize % (NUM_PASSWORDS - OFFSET) + OFFSET;
         passwords.swap(0, offset);
 
-        #[cfg(feature = "ssr")]
         info!(
             user = self.username,
             offset = offset,

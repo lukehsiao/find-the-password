@@ -1,9 +1,11 @@
-use jiff::Timestamp;
 use leptos::*;
 use leptos_meta::*;
 use leptos_router::*;
 
-use crate::error_template::{AppError, ErrorTemplate};
+use crate::{
+    error_template::{AppError, ErrorTemplate},
+    user::Completion,
+};
 
 /// Add a new user to the user map.
 #[server(AddUser)]
@@ -31,7 +33,7 @@ pub async fn add_user(username: String) -> Result<(), ServerFnError> {
 
 /// Read the current leaderboard.
 #[server(GetLeaders)]
-pub async fn get_leaders() -> Result<Vec<(String, Timestamp)>, ServerFnError> {
+pub async fn get_leaders() -> Result<Vec<Completion>, ServerFnError> {
     use crate::state::AppState;
     let state = expect_context::<AppState>();
     Ok((*state.leaderboard).clone())
@@ -43,8 +45,8 @@ pub fn App() -> impl IntoView {
     provide_meta_context();
 
     view! {
-        <Stylesheet id="leptos" href="/pkg/challenge.css" />
         <Stylesheet href="https://cdn.jsdelivr.net/npm/water.css@2/out/water.css" />
+        <Stylesheet id="leptos" href="/pkg/challenge.css" />
 
         // sets the document title
         <Title text="Challenge: Find the Password" />
@@ -141,13 +143,13 @@ fn HomePage() -> impl IntoView {
             </ActionForm>
         </ErrorBoundary>
 
-        // TODO: Show the leaderboard
         <h2>Leaderboard</h2>
         <table>
             <thead>
                 <tr>
                     <th>"Username"</th>
-                    <th>"Solved Timestamp"</th>
+                    <th>"Time to Solve"</th>
+                    <th style="text-align: right;">"Attempts to Solve"</th>
                 </tr>
             </thead>
             <tbody>
@@ -160,11 +162,14 @@ fn HomePage() -> impl IntoView {
                             .map(|l| {
                                 l.map(|v| {
                                     v.into_iter()
-                                        .map(|(user, ts)| {
+                                        .map(|completion| {
                                             view! {
                                                 <tr>
-                                                    <td>{user}</td>
-                                                    <td>{ts.strftime("%F %T%.f%:V").to_string()}</td>
+                                                    <td>{completion.username}</td>
+                                                    <td>{completion.time_to_solve.to_string()}</td>
+                                                    <td style="text-align: right;">
+                                                        <code>{completion.attempts_to_solve}</code>
+                                                    </td>
                                                 </tr>
                                             }
                                         })

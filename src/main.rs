@@ -4,12 +4,17 @@ async fn main() {
     use std::sync::Arc;
 
     use axum::Router;
-    use jiff::Timestamp;
+    use jiff::ToSpan;
     use leptos::*;
     use leptos_axum::{generate_route_list, LeptosRoutes};
     use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
-    use challenge::{app::*, fileserv::file_and_error_handler, state::AppState, user::UserMap};
+    use challenge::{
+        app::*,
+        fileserv::file_and_error_handler,
+        state::AppState,
+        user::{Completion, UserMap},
+    };
 
     // Enable tracing.
     tracing_subscriber::registry()
@@ -34,7 +39,11 @@ async fn main() {
     let app_state = AppState {
         leptos_options,
         usermap: Arc::new(UserMap::new()),
-        leaderboard: Arc::new(vec![("test".to_string(), Timestamp::now())]),
+        leaderboard: Arc::new(vec![Completion {
+            username: "test".to_string(),
+            time_to_solve: 4_i32.hour().minutes(30),
+            attempts_to_solve: 50000,
+        }]),
     };
 
     // build our application with a route
