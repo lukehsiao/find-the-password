@@ -84,4 +84,9 @@ impl User {
 
         passwords.join("\n")
     }
+
+    /// Check if the password is the correct one.
+    pub fn check_password(&self, password: &str) -> bool {
+        self.secret == password
+    }
 }
