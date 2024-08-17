@@ -4,6 +4,7 @@ async fn main() {
     use std::sync::Arc;
 
     use axum::Router;
+    use jiff::Timestamp;
     use leptos::*;
     use leptos_axum::{generate_route_list, LeptosRoutes};
     use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
@@ -33,7 +34,7 @@ async fn main() {
     let app_state = AppState {
         leptos_options,
         usermap: Arc::new(UserMap::new()),
-        leaderboard: Arc::new(Vec::new()),
+        leaderboard: Arc::new(vec![("test".to_string(), Timestamp::now())]),
     };
 
     // build our application with a route

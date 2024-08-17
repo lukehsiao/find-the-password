@@ -70,6 +70,8 @@ fn HomePage() -> impl IntoView {
     let add_user = Action::<AddUser, _>::server();
     let value = Signal::derive(move || add_user.value().get().unwrap_or_else(|| Ok(())));
 
+    let leaders = create_resource(|| (), |_| async move { get_leaders().await });
+
     view! {
         <h1 id="finding-the-password">"Finding the password"</h1>
         <p>
@@ -140,20 +142,38 @@ fn HomePage() -> impl IntoView {
         </ErrorBoundary>
 
         // TODO: Show the leaderboard
-        {
-            view! {
-                // TODO: Don't know how to read from the state here
-                <h2>Leaderboard</h2>
-                <table>
-                    <thead>
-                        <tr>
-                            <th>"Username"</th>
-                            <th>"Solved Time"</th>
-                        </tr>
-                    </thead>
-                    <tbody></tbody>
-                </table>
-            }
-        }
+        <h2>Leaderboard</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>"Username"</th>
+                    <th>"Solved Timestamp"</th>
+                </tr>
+            </thead>
+            <tbody>
+                <Transition fallback=move || {
+                    view! {}
+                }>
+                    {move || {
+                        leaders
+                            .get()
+                            .map(|l| {
+                                l.map(|v| {
+                                    v.into_iter()
+                                        .map(|(user, ts)| {
+                                            view! {
+                                                <tr>
+                                                    <td>{user}</td>
+                                                    <td>{ts.strftime("%F %T%.f%:V").to_string()}</td>
+                                                </tr>
+                                            }
+                                        })
+                                        .collect_view()
+                                })
+                            })
+                    }}
+                </Transition>
+            </tbody>
+        </table>
     }
 }
