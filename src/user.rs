@@ -1,8 +1,9 @@
 use dashmap::DashMap;
 use jiff::{Span, Timestamp};
-use leptos::tracing::info;
 use rand::{distributions::Alphanumeric, rngs::StdRng, Rng, SeedableRng};
 use serde::{Deserialize, Serialize};
+#[cfg(feature = "ssr")]
+use tracing::info;
 
 const NUM_PASSWORDS: usize = 60_000;
 const PASS_LEN: usize = 32;
@@ -76,6 +77,7 @@ impl User {
         let offset = self.seed as usize % (NUM_PASSWORDS - OFFSET) + OFFSET;
         passwords.swap(0, offset);
 
+        #[cfg(feature = "ssr")]
         info!(
             user = self.username,
             offset = offset,
@@ -88,6 +90,16 @@ impl User {
 
     /// Check if the password is the correct one.
     pub fn check_password(&self, password: &str) -> bool {
-        self.secret == password
+        if self.secret == password {
+            #[cfg(feature = "ssr")]
+            info!(
+                user = self.username,
+                solved_at = %Timestamp::now(),
+                "solved"
+            );
+            true
+        } else {
+            false
+        }
     }
 }
