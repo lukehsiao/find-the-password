@@ -43,7 +43,7 @@ async fn main() -> Result<()> {
     bodies
         .for_each(|b| async {
             match b {
-                Ok((pass, body)) if &body == "True" => {
+                Ok((pass, body)) if &body == "true" => {
                     println!("Password is: {pass}");
                     process::exit(0);
                 }
