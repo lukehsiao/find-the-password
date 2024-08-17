@@ -113,9 +113,15 @@ pub fn App() -> impl IntoView {
 fn UserPage() -> impl IntoView {
     let params = use_params_map();
     // let username = move || params.with(|params| params.get("username").cloned());
-    let username = create_resource(
-        || (),
-        |_| async move { params.with(|params| params.get("username").clone()) },
+    let user = create_resource(
+        move || params.get().get("username").cloned().unwrap_or_default(),
+        move |username| async move {
+            if username.is_empty() {
+                None
+            } else {
+                Some(get_user(username).await)
+            }
+        },
     );
 
     let get_passwords = Action::<GetUserPasswords, _>::server();
@@ -126,20 +132,7 @@ fn UserPage() -> impl IntoView {
             .unwrap_or_else(|| Ok(String::new()))
     });
 
-    // Redirect on empty username
-    create_effect(move |_| match username().as_deref() {
-        None | Some("") => {
-            let navigate = leptos_router::use_navigate();
-            navigate("/", Default::default());
-        }
-        _ => (),
-    });
-
-    let user = create_resource(
-        || (),
-        move |_| async move { get_user(username().unwrap()).await },
-    );
-
+    // TODO: How do we trigger a file download?
     view! {
         <Transition fallback=move || {
             view! { <p>"Error?"</p> }
@@ -148,7 +141,7 @@ fn UserPage() -> impl IntoView {
                 user.get()
                     .map(|user| {
                         match user {
-                            Ok(user) => {
+                            Some(Ok(user)) => {
                                 let username = user.username.clone();
                                 view! {
                                     <h1 id="username">"Hi, "{username.clone()}"!"</h1>
@@ -177,21 +170,21 @@ fn UserPage() -> impl IntoView {
                                                 </p>
                                             </div>
                                             <ActionForm action=get_passwords>
-                                                <input type="hidden" name="username" value={username}/>
+                                                <input type="hidden" name="username" value=username />
                                                 <input type="submit" value="Get password file" />
                                             </ActionForm>
                                         }
                                     }>
                                         <div>{value}</div>
                                         <ActionForm action=get_passwords>
-                                            <input type="hidden" name="username" value={username}/>
+                                            <input type="hidden" name="username" value=username />
                                             <input type="submit" value="Get password file" />
                                         </ActionForm>
                                     </ErrorBoundary>
                                 }
-                                .into_view()
+                                    .into_view()
                             }
-                            Err(_) => {
+                            _ => {
                                 let navigate = leptos_router::use_navigate();
                                 navigate("/", Default::default());
                                 ().into_view()
