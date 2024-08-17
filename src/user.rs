@@ -81,7 +81,8 @@ impl User {
             offset = offset,
             "Generated {NUM_PASSWORDS} passwords"
         );
-
+        // Hack to end the file with a newline
+        passwords.push("".to_string());
         passwords.join("\n")
     }
 

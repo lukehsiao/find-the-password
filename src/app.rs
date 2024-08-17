@@ -125,15 +125,6 @@ fn UserPage() -> impl IntoView {
         },
     );
 
-    let get_passwords = Action::<GetUserPasswords, _>::server();
-    let value = Signal::derive(move || {
-        get_passwords
-            .value()
-            .get()
-            .unwrap_or_else(|| Ok(String::new()))
-    });
-
-    // TODO: How do we trigger a file download?
     view! {
         <Transition fallback=move || {
             view! { <p>"Error?"</p> }
@@ -147,41 +138,16 @@ fn UserPage() -> impl IntoView {
                                 view! {
                                     <h1 id="username">"Hi, "{username.clone()}"!"</h1>
                                     <p>
-                                        "Glad to have you join us for this challenge! Download your password file by clicking the button below."
+                                        "Glad to have you join us for this challenge! Download your password file by clicking the link below."
                                     </p>
-                                    <ErrorBoundary fallback=move |error| {
-                                        let username = user.username.clone();
-                                        view! {
-                                            <div class="error">
-                                                <p>
-                                                    {move || {
-                                                        format!(
-                                                            "{}",
-                                                            error
-                                                                .get()
-                                                                .into_iter()
-                                                                .next()
-                                                                .unwrap()
-                                                                .1
-                                                                .to_string()
-                                                                .strip_prefix("error running server function: ")
-                                                                .unwrap(),
-                                                        )
-                                                    }}
-                                                </p>
-                                            </div>
-                                            <ActionForm action=get_passwords>
-                                                <input type="hidden" name="username" value=username />
-                                                <input type="submit" value="Get password file" />
-                                            </ActionForm>
-                                        }
-                                    }>
-                                        <div>{value}</div>
-                                        <ActionForm action=get_passwords>
-                                            <input type="hidden" name="username" value=username />
-                                            <input type="submit" value="Get password file" />
-                                        </ActionForm>
-                                    </ErrorBoundary>
+                                    <a
+                                        class="button"
+
+                                        href=format!("/u/{}/passwords.txt", &user.username)
+                                        download="passwords.txt"
+                                    >
+                                        "Get your passwords.txt"
+                                    </a>
                                 }
                                     .into_view()
                             }
