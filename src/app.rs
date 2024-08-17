@@ -174,7 +174,7 @@ fn HomePage() -> impl IntoView {
     view! {
         <h1 id="finding-the-password">"Finding the password"</h1>
         <p>
-            "I have a text file with 50,000 passwords (one password per line). I seem to have lost my password in this file. Can you help me find it?"
+            "I have a text file with 60,000 passwords (one password per line). I seem to have lost my password in this file. Can you help me find it?"
         </p>
         <h2 id="how-to-play">"How to Play"</h2>
         <ol>
