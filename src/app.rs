@@ -20,7 +20,7 @@ pub async fn add_user(username: String) -> Result<(), ServerFnError> {
     let state = expect_context::<AppState>();
     if state.usermap.contains_key(&username) {
         Err(ServerFnError::ServerError(
-            "user already exists".to_string(),
+            "username is already taken".to_string(),
         ))
     } else {
         leptos_axum::redirect(format!("/u/{}", &username).as_str());
