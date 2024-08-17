@@ -15,16 +15,19 @@ pub async fn check_password(
     match state.usermap.get_mut(&username) {
         None => (StatusCode::NOT_FOUND).into_response(),
         Some(mut user) => {
-            user.hits_before_solved += 1;
+            if user.solved_at.is_none() {
+                user.hits_before_solved += 1;
+            }
             if user.check_password(&password) {
-                user.solved_at = Some(Timestamp::now());
-                // Solved! Add to leaderboard.
-                (*state.leaderboard).lock().unwrap().push(Completion {
-                    username: user.username.clone(),
-                    time_to_solve: user.solved_at.unwrap() - user.created_at,
-                    attempts_to_solve: user.hits_before_solved,
-                });
-
+                if user.solved_at.is_none() {
+                    user.solved_at = Some(Timestamp::now());
+                    // Solved! Add to leaderboard.
+                    (*state.leaderboard).lock().unwrap().push(Completion {
+                        username: user.username.clone(),
+                        time_to_solve: user.solved_at.unwrap() - user.created_at,
+                        attempts_to_solve: user.hits_before_solved,
+                    });
+                }
                 (StatusCode::OK, "true").into_response()
             } else {
                 (StatusCode::OK, "false").into_response()
