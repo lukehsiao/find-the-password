@@ -3,7 +3,7 @@
     Challenge: Find the Password
 </h1>
 <div align="center">
-    <strong>A brute-force challenge to introduce computer automation to kids.</strong>
+    <strong>A brute-force challenge to introduce computer automation to youth.</strong>
 </div>
 <br>
 <div align="center">
