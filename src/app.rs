@@ -167,7 +167,7 @@ fn UserPage() -> impl IntoView {
 #[component]
 fn HomePage() -> impl IntoView {
     let add_user = Action::<AddUser, _>::server();
-    let value = Signal::derive(move || add_user.value().get().unwrap_or_else(|| Ok(())));
+    let value = Signal::derive(move || add_user.value().get().unwrap_or(Ok(())));
 
     let leaders = create_resource(|| (), |_| async move { get_leaders().await });
 
@@ -212,18 +212,16 @@ fn HomePage() -> impl IntoView {
                 <div class="error">
                     <p>
                         {move || {
-                            format!(
-                                "{}",
-                                error
-                                    .get()
-                                    .into_iter()
-                                    .next()
-                                    .unwrap()
-                                    .1
-                                    .to_string()
-                                    .strip_prefix("error running server function: ")
-                                    .unwrap(),
-                            )
+                            error
+                                .get()
+                                .into_iter()
+                                .next()
+                                .unwrap()
+                                .1
+                                .to_string()
+                                .strip_prefix("error running server function: ")
+                                .unwrap()
+                                .to_string()
                         }}
                     </p>
                 </div>

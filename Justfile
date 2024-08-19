@@ -42,7 +42,7 @@ fmt:
 # Sets up a watcher that lints, tests, and builds
 watch:
 	# cargo watch -x 'clippy --all-targets --all-features -- -D warnings' -x 'nextest run' -x 'build --release' 
-	cargo leptos watch
+	cargo watch -x 'clippy --all-targets --all-features -- -D warnings' -x 'leptos watch'
 
 # Update the changelog using git-cliff
 _update_changelog version:
