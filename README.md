@@ -90,6 +90,7 @@ cargo run --release --example=passwords < /path/to/your/passwords.txt
 
 Just as a ballpark benchmark for actual password checking, I ran a test with [`oha`](https://github.com/hatoo/oha) against a release-built version of the server running on the same machine.
 This shows throughput of **just under 60k requests/second** due to the full in-memory implementation.
+This is run on a PC with 64 GB of DDR5 RAM and a Ryzen 7 7800X3D (8-core, 16-thread).
 
 ```
 ❯ oha -n 500000 -c 10 --disable-keepalive http://localhost:3000/u/luke/check/asdf
