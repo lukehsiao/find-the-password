@@ -74,7 +74,7 @@ With these two things in mind, the design of this application takes the followin
 
 - Simplify user creation.
   No authentication, etc.
-  Youth can add themselves to reduce admin overhead, and we don't worry about extra persistence or auth or anything because the server will be killed after a short time anyways.
+  Youth can add themselves to reduce admin overhead, and we don't worry about extra persistence or auth or anything because the server will be killed after a short time anyway.
 - All in-memory.
   We want **high throughput**.
   A previous iteration of this server was implemented with a sqlite database, but would cap at around 1k requests per second.
@@ -152,7 +152,7 @@ He had cleverly figured out how to generate the list of URLs from the passwords 
 
 Then, he discovered there are websites ([example](https://www.websiteplanet.com/webtools/multiple-url/)) in which you can paste 1 URL per line, and it will open 1 tab per URL (the limit being the limits of the computer you're running it on).
 In his case, he found that was about 500.
-This young man then proceeded to open batches of 500 urls at a time, gluing his eyes to the top left of the screen to look at the `false` or `true` printed there, positioned his mouse accordingly, and just closed tabs fast, waiting to see if a `true` flashed.
+This young man then proceeded to open batches of 500 URLs at a time, gluing his eyes to the top left of the screen to look at the `false` or `true` printed there, positioned his mouse accordingly, and just closed tabs fast, waiting to see if a `true` flashed.
 In his manual, brute force approach, he solved the puzzle in just a few hours.
 
 Now, the list is 60k passwords.
