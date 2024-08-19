@@ -45,7 +45,7 @@ footer = """
 trim = true
 # postprocessors
 postprocessors = [
-    { pattern = '\$REPO', replace = "https://github.com/lukehsiao/code-challenges" }, # replace repository URL
+    { pattern = '\$REPO', replace = "https://github.com/lukehsiao/find-the-password" }, # replace repository URL
 ]
 
 [git]
@@ -55,32 +55,32 @@ conventional_commits = true
 filter_unconventional = true
 # regex for parsing and grouping commits
 commit_parsers = [
-    { message = "^feat", group = "Features"},
-    { message = "^fix", group = "Bug Fixes"},
-    { message = "^doc", group = "Documentation"},
-    { message = "^perf", group = "Performance"},
-    { message = "^refactor", group = "Refactor"},
-    { message = "^style", group = "Styling"},
-    { message = "^test", group = "Testing"},
+    { body = ".*security", group = "<!-- 0 -->Security"},
+    { message = "^feat", group = "<!-- 1 -->Features"},
+    { message = "^fix", group = "<!-- 2 -->Bug Fixes"},
+    { message = "^perf", group = "<!-- 3 -->Performance"},
+    { message = "^doc", group = "<!-- 4 -->Documentation"},
+    { message = "^refactor", group = "<!-- 5 -->Refactor"},
+    { message = "^build", group = "<!-- 6 -->Build and Dependencies" },
+    { message = "^test", group = "Testing", skip = true},
+    { message = "^style", group = "Styling", skip = true},
     { message = "^ci", group = "CI/CD", skip = true},
-    { message = "^build", group = "Build and Dependencies", skip = true},
     { message = "^chore\\(release\\): bump", skip = true},
     { message = "^chore", group = "Miscellaneous Tasks", skip = true},
-    { body = ".*security", group = "Security"},
 ]
 # filter out the commits that are not matched by commit parsers
 filter_commits = false
 # glob pattern for matching git tags
 tag_pattern = "v[0-9]*"
 # regex for skipping tags
-# skip_tags = "v0.1.0-beta.1"
+skip_tags = "v0.1.0-beta.1"
 # regex for ignoring tags
-# ignore_tags = "python-v[0-9]*"
+ignore_tags = "python-v[0-9]*"
 # sort the tags chronologically
-topo_order = false
+date_order = true
 # sort the commits inside sections by oldest/newest order
 sort_commits = "oldest"
 link_parsers = [
-    { pattern = "#(\\d+)", href = "https://github.com/lukehsiao/code-challenges/issues/$1"},
+    { pattern = "#(\\d+)", href = "https://github.com/lukehsiao/find-the-password/issues/$1"},
     { pattern = "RFC(\\d+)", text = "ietf-rfc$1", href = "https://datatracker.ietf.org/doc/html/rfc$1"},
 ]

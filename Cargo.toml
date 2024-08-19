@@ -2,6 +2,13 @@
 name = "challenge"
 version = "0.1.0"
 edition = "2021"
+authors = ["Luke Hsiao <luke@hsiao.dev>"]
+description = "A brute-force challenge to introduce computer automation to kids."
+repository = "https://github.com/lukehsiao/find-the-password"
+homepage = "https://github.com/lukehsiao/find-the-password"
+license = "BlueOak-1.0.0"
+publish = false
+rust-version = "1.80.1"
 
 [lib]
 crate-type = ["cdylib", "rlib"]
