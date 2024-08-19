@@ -34,64 +34,14 @@ Why does this matter? Scott concludes:
 
 I'm with him.
 
-In fact, this project is specifically a real implementation of a little toy challenge he proposes in the blog post.
-In his words (emphasis mine):
+Software continues to [eat the world](https://a16z.com/why-software-is-eating-the-world/), and no matter what profession you ultimately work in, the probability that you are affected by and/or dependent on computer systems is high.
+My blog post sets more context around the design of this server and some anecdotal stories from giving this challenge over the years.
 
-> Stop fixing things for your kids.
-> You spend hours of your time potty-training them when they're in their infancy, because being able to use the toilet is pretty much an essential skill in modern society.
-> You need to do the same with technology.
-> Buy them a computer by all means, but if it goes wrong, get them to fix it.
-> Buy them a smartphone, give them £10 of app store credit a year and let them learn why in-app-purchases are a bad idea.
-> When we teach kids to ride a bike, at some point we have to take the training wheels off.
-> Here's an idea.
-> **When they hit eleven, give them a plaintext file with ten-thousand WPA2 keys and tell them that the real one is in there somewhere.
-> See how quickly they discover Python or Bash then.**
+<div align="center">
 
-This project is a simple-to-run web app which generates a list of 60k passwords, and provides a simple URL scheme for checking passwords to know if they are right or wrong.
+**<https://luke.hsiao.dev/blog/find-the-password/>**
 
-Typically, the challenge is presented with some rewards for the earliest solvers (and it shows a leaderboard for that), but the real goal is to tap into some natural curiosity and educate.
-
-Note that there are still several ways you can take the challenge for different knowledge levels of youth.
-
-1. Simple, brute-force serial approach.
-   I don't have a level less than this, because I think the struggle and learning to get to this point is the crux of the challenge.
-   For those with less experience, pointers on what to search, or even setting up a working Python environment with an example file that makes 1 web request might help.
-   Note that there are other ways people might solve this (e.g., utilizing the web request functions of Excel), so really any solution works, but this is an opportunity to teach about programming.
-2. More optimal, concurrent approach.
-   E.g., if you have someone somewhat familiar with programming, have them implement a checker that brute forces all the passwords as fast as they can!
-3. Design the challenge.
-   If the concurrent brute force is too easy, it's time to talk system design.
-   For these youth, pose the question "How would you implement this challenge?"
-   This presents an opportunity to talk about tradeoffs in the design space.
-   For example, the tradeoffs of the in-memory approach discussed below.
-
-## Design
-
-This challenge is essentially inviting youth to DDoS your server.
-In addition, this is NOT intended to be a long-running application.
-
-With these two things in mind, the design of this application takes the following approach:
-
-- Simplify user creation.
-  No authentication, etc.
-  Youth can add themselves to reduce admin overhead, and we don't worry about extra persistence or auth or anything because the server will be killed after a short time anyway.
-- All in-memory.
-  We want **high throughput**.
-  A previous iteration of this server was implemented with a sqlite database, but would cap at around 1k requests per second.
-  By instead just using shared state entirely in memory, this server does closer to 60k rps.
-  Eliminating backing services also simplifies things.
-- But not too much memory.
-  Since we want to use memory only, we don't want to use too much.
-  For example, when generating a 60k list of passwords (~2MB), we could store that for each user after we first generate it.
-  But, instead, to save memory, we just _regenerate_ it from a random seed that we save each time the password file is requests.
-  This optimization makes sense because getting the password file should be rare compared to actually checking the passwords.
-  We also do save the correct password directly so that that check is wicked fast.
-
-So, what this looks like is essentially just 3 endpoints:
-
-1. A homepage with instructions, a leaderboard, and a way for a youth to join the challenge.
-2. A user-specific page that allows them to download a password file.
-3. A password-checking API.
+</div>
 
 ## Building and Running
 
@@ -135,38 +85,6 @@ Modify the source code as needed (e.g., to change the username or hostname for t
 ```
 cargo run --release --example=passwords < /path/to/your/passwords.txt
 ```
-
-## Stories So Far
-
-I've given this to a handful of youth, ranging from ages 10 to 18.
-
-Here are some stories worth highlighting.
-
-### Never underestimate the grit of a teenager
-
-One of the first times I gave this challenge, I offered a monetary reward for the first person to find the password.
-At the time, I was generating a list of 10k password as the blog post suggested.
-
-One particularly determined young man had a high tolerance for manual repetition.
-He had cleverly figured out how to generate the list of URLs from the passwords by pasting in the newline-separated `passwords.txt` into a spreadsheet, and then use spreadsheet functions to construct the URLs for each.
-
-Then, he discovered there are websites ([example](https://www.websiteplanet.com/webtools/multiple-url/)) in which you can paste 1 URL per line, and it will open 1 tab per URL (the limit being the limits of the computer you're running it on).
-In his case, he found that was about 500.
-This young man then proceeded to open batches of 500 URLs at a time, gluing his eyes to the top left of the screen to look at the `false` or `true` printed there, positioned his mouse accordingly, and just closed tabs fast, waiting to see if a `true` flashed.
-In his manual, brute force approach, he solved the puzzle in just a few hours.
-
-Now, the list is 60k passwords.
-
-### This is an opportunity to teach a growth mindset
-
-The flip side to the thrill of seeing youth dive in with enthusiasm, is seeing a youth react very quickly with defeat.
-This is not unusual if giving the challenge to a general group of youth.
-Some will have a reaction of: trying several passwords by hand, realizing this is an untenable approach, and then quickly decided "they don't know" and quitting.
-It feels even more heart-wrenching when you here defeated statements erroneously tied to identity, like "I'm not smart enough", or "I'm just bad at computers".
-
-I hope if you give the challenge, you see these as opportunities.
-Here is a moment in time that you might uniquely change someone's mind about what defines them, and what they can do.
-My goal in these scenarios is to do my best to make this experience a memorable counter-example for that individual---yes, you can do it!
 
 ## Benchmarks
 
