@@ -19,7 +19,7 @@ axum = { version = "0.7", optional = true, features = ["macros"] }
 console_error_panic_hook = "0.1"
 dashmap = "6.0.1"
 http = "1"
-jiff = { version = "0.1.7", features = ["serde"] }
+jiff = { version = "0.1.10", features = ["serde"] }
 leptos = { version = "0.6" }
 leptos_axum = { version = "0.6", optional = true }
 leptos_meta = { version = "0.6" }
