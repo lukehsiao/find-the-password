@@ -61,7 +61,7 @@ commit_parsers = [
     { message = "^perf", group = "<!-- 3 -->Performance"},
     { message = "^doc", group = "<!-- 4 -->Documentation"},
     { message = "^refactor", group = "<!-- 5 -->Refactor"},
-    { message = "^build", group = "<!-- 6 -->Build and Dependencies" },
+    { message = "^build", group = "<!-- 6 -->Build and Dependencies", skip = true },
     { message = "^test", group = "Testing", skip = true},
     { message = "^style", group = "Styling", skip = true},
     { message = "^ci", group = "CI/CD", skip = true},
