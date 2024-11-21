@@ -5,7 +5,7 @@ _default:
 
 # Runs clippy on the sources
 check:
-	cargo clippy --locked -- -D warnings
+	cargo clippy --all-features --all-targets --locked -- -W clippy::pedantic -D warnings
 
 # check security advisories
 audit:
