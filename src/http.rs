@@ -5,12 +5,17 @@ use axum::{
 };
 use jiff::Timestamp;
 
-use crate::{state::AppState, user::Completion};
+use crate::{state::Internal, user::Completion};
 
 /// Check a password for correctness.
+///
+/// # Panics
+/// - If the leaderboard is unable to be locked.
+#[allow(clippy::unused_async)]
+#[must_use]
 pub async fn check_password(
     Path((username, password)): Path<(String, String)>,
-    State(state): State<AppState>,
+    State(state): State<Internal>,
 ) -> Response {
     match state.usermap.get_mut(&username) {
         None => (StatusCode::NOT_FOUND).into_response(),
@@ -37,9 +42,11 @@ pub async fn check_password(
 }
 
 /// Produce passwords.txt for a suer.
+#[allow(clippy::unused_async)]
+#[must_use]
 pub async fn get_passwords(
     Path(username): Path<String>,
-    State(state): State<AppState>,
+    State(state): State<Internal>,
 ) -> Response {
     match state.usermap.get_mut(&username) {
         None => (StatusCode::NOT_FOUND).into_response(),

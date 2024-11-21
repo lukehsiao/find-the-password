@@ -22,7 +22,7 @@ async fn main() -> Result<()> {
     let client = ClientBuilder::new().build()?;
 
     let num_cpus = thread::available_parallelism()
-        .map(|n| n.get())
+        .map(std::num::NonZero::get)
         .unwrap_or(1);
     info!("Num CPUs: {num_cpus}");
 
@@ -48,7 +48,7 @@ async fn main() -> Result<()> {
                     process::exit(0);
                 }
                 Ok((pass, body)) => {
-                    debug!("{pass}: {body}")
+                    debug!("{pass}: {body}");
                 }
                 _ => {}
             }

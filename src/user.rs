@@ -10,7 +10,7 @@ const PASS_LEN: usize = 32;
 const OFFSET: usize = 15_000;
 
 /// Collection of all users
-pub type UserMap = DashMap<String, User>;
+pub type Users = DashMap<String, User>;
 
 /// Defines all of the state we keep for a particular user.
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -35,6 +35,7 @@ pub struct Completion {
 
 impl User {
     /// Create a new user with a seed and secret
+    #[allow(clippy::cast_sign_loss)]
     pub fn new(username: String) -> User {
         // Generate a seed based on username and current time
         let seed = username
@@ -61,6 +62,10 @@ impl User {
     }
 
     /// Get a user-specific list of passwords.
+    ///
+    /// # Panics
+    /// - If the seed cannot be cast to a `usize`
+    #[allow(clippy::cast_sign_loss)]
     pub fn get_passwords(&self) -> String {
         let mut rng = StdRng::seed_from_u64(self.seed as u64);
         let mut passwords: Vec<String> = (0..NUM_PASSWORDS)
@@ -74,7 +79,7 @@ impl User {
             .collect();
 
         // The first password generated is the secret, so swap it later into the list.
-        let offset = self.seed as usize % (NUM_PASSWORDS - OFFSET) + OFFSET;
+        let offset = usize::try_from(self.seed).unwrap() % (NUM_PASSWORDS - OFFSET) + OFFSET;
         passwords.swap(0, offset);
 
         #[cfg(feature = "ssr")]
@@ -84,7 +89,7 @@ impl User {
             "Generated {NUM_PASSWORDS} passwords"
         );
         // Hack to end the file with a newline
-        passwords.push("".to_string());
+        passwords.push(String::new());
         passwords.join("\n")
     }
 

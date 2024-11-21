@@ -6,10 +6,11 @@ use axum::{
     http::{Request, Response, StatusCode},
     response::IntoResponse,
 };
-use leptos::*;
+use leptos::LeptosOptions;
 use tower::ServiceExt;
 use tower_http::services::ServeDir;
 
+#[allow(clippy::missing_panics_doc)]
 pub async fn file_and_error_handler(
     State(options): State<LeptosOptions>,
     req: Request<Body>,
@@ -25,14 +26,14 @@ pub async fn file_and_error_handler(
             .insert("accept-encoding", encodings.clone());
     }
 
-    let res = get_static_file(Request::from_parts(static_parts, Body::empty()), &root)
+    let resp = get_static_file(Request::from_parts(static_parts, Body::empty()), &root)
         .await
         .unwrap();
 
-    if res.status() == StatusCode::OK {
-        res.into_response()
+    if resp.status() == StatusCode::OK {
+        resp.into_response()
     } else {
-        let handler = leptos_axum::render_app_to_stream(options.to_owned(), App);
+        let handler = leptos_axum::render_app_to_stream(options.clone(), App);
         handler(Request::from_parts(parts, body))
             .await
             .into_response()

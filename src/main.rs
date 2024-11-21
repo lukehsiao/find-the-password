@@ -4,17 +4,17 @@ async fn main() {
     use std::sync::{Arc, Mutex};
 
     use axum::{routing, Router};
-    use leptos::*;
+    use leptos::{get_configuration, logging, provide_context};
     use leptos_axum::{generate_route_list, LeptosRoutes};
     use tower_http::compression::CompressionLayer;
     use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
     use challenge::{
-        app::*,
+        app::App,
         fileserv::file_and_error_handler,
         http::{check_password, get_passwords},
-        state::AppState,
-        user::UserMap,
+        state::Internal,
+        user::Users,
     };
 
     // Enable tracing.
@@ -37,9 +37,9 @@ async fn main() {
     let leptos_options = conf.leptos_options;
     let addr = leptos_options.site_addr;
     let routes = generate_route_list(App);
-    let app_state = AppState {
+    let app_state = Internal {
         leptos_options,
-        usermap: Arc::new(UserMap::new()),
+        usermap: Arc::new(Users::new()),
         leaderboard: Arc::new(Mutex::new(vec![])),
     };
 
@@ -96,7 +96,7 @@ async fn shutdown_signal() {
     let terminate = std::future::pending::<()>();
 
     tokio::select! {
-        _ = ctrl_c => {},
-        _ = terminate => {},
+        () = ctrl_c => {},
+        () = terminate => {},
     }
 }

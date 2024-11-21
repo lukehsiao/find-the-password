@@ -1,6 +1,6 @@
 use leptos::*;
-use leptos_meta::*;
-use leptos_router::*;
+use leptos_meta::{provide_meta_context, Stylesheet, Title};
+use leptos_router::{use_params_map, ActionForm, NavigateOptions, Route, Router, Routes};
 
 use crate::{
     error_template::{AppError, ErrorTemplate},
@@ -8,16 +8,17 @@ use crate::{
 };
 
 /// Add a new user to the user map.
+#[allow(clippy::unused_async)]
 #[server(AddUser)]
 pub async fn add_user(username: String) -> Result<(), ServerFnError> {
+    use crate::state::Internal;
+    use crate::user::User;
     if username.is_empty() {
         return Err(ServerFnError::ServerError(
             "username must not just be whitespace".to_string(),
         ));
     }
-    use crate::state::AppState;
-    use crate::user::User;
-    let state = expect_context::<AppState>();
+    let state = expect_context::<Internal>();
     if state.usermap.contains_key(&username) {
         Err(ServerFnError::ServerError(
             "username is already taken".to_string(),
@@ -30,15 +31,16 @@ pub async fn add_user(username: String) -> Result<(), ServerFnError> {
 }
 
 /// Get a user.
+#[allow(clippy::unused_async)]
 #[server(GetUser)]
 pub async fn get_user(username: String) -> Result<User, ServerFnError> {
+    use crate::state::Internal;
     if username.is_empty() {
         return Err(ServerFnError::ServerError(
             "username must not just be whitespace".to_string(),
         ));
     }
-    use crate::state::AppState;
-    let state = expect_context::<AppState>();
+    let state = expect_context::<Internal>();
     let result = if let Some(user) = state.usermap.get(&username) {
         Ok((*user).clone())
     } else {
@@ -52,15 +54,16 @@ pub async fn get_user(username: String) -> Result<User, ServerFnError> {
 }
 
 /// Get a user's password file
+#[allow(clippy::unused_async)]
 #[server(GetUserPasswords)]
 pub async fn get_user_passwords(username: String) -> Result<String, ServerFnError> {
+    use crate::state::Internal;
     if username.is_empty() {
         return Err(ServerFnError::ServerError(
             "username must not just be whitespace".to_string(),
         ));
     }
-    use crate::state::AppState;
-    let state = expect_context::<AppState>();
+    let state = expect_context::<Internal>();
     let result = if let Some(user) = state.usermap.get(&username) {
         Ok(user.get_passwords())
     } else {
@@ -73,15 +76,18 @@ pub async fn get_user_passwords(username: String) -> Result<String, ServerFnErro
 }
 
 /// Read the current leaderboard.
+#[allow(clippy::unused_async)]
 #[server(GetLeaders)]
 pub async fn get_leaders() -> Result<Vec<Completion>, ServerFnError> {
-    use crate::state::AppState;
-    let state = expect_context::<AppState>();
+    use crate::state::Internal;
+    let state = expect_context::<Internal>();
     let leaders = (*state.leaderboard).lock().unwrap().clone();
     Ok(leaders)
 }
 
+#[allow(clippy::module_name_repetitions)]
 #[component]
+#[must_use]
 pub fn App() -> impl IntoView {
     // Provides context that manages stylesheets, titles, meta tags, etc.
     provide_meta_context();
@@ -132,30 +138,27 @@ fn UserPage() -> impl IntoView {
             {move || {
                 user.get()
                     .map(|user| {
-                        match user {
-                            Some(Ok(user)) => {
-                                let username = user.username.clone();
-                                view! {
-                                    <h1 id="username">"Hi, "{username.clone()}"!"</h1>
-                                    <p>
-                                        "Glad to have you join us for this challenge! Download your password file by clicking the link below."
-                                    </p>
-                                    <a
-                                        class="button"
+                        if let Some(Ok(user)) = user {
+                            let username = user.username.clone();
+                            view! {
+                                <h1 id="username">"Hi, "{username.clone()}"!"</h1>
+                                <p>
+                                    "Glad to have you join us for this challenge! Download your password file by clicking the link below."
+                                </p>
+                                <a
+                                    class="button"
 
-                                        href=format!("/u/{}/passwords.txt", &user.username)
-                                        download="passwords.txt"
-                                    >
-                                        "Get your passwords.txt"
-                                    </a>
-                                }
-                                    .into_view()
+                                    href=format!("/u/{}/passwords.txt", &user.username)
+                                    download="passwords.txt"
+                                >
+                                    "Get your passwords.txt"
+                                </a>
                             }
-                            _ => {
-                                let navigate = leptos_router::use_navigate();
-                                navigate("/", Default::default());
-                                ().into_view()
-                            }
+                                .into_view()
+                        } else {
+                            let navigate = leptos_router::use_navigate();
+                            navigate("/", NavigateOptions::default());
+                            ().into_view()
                         }
                     })
             }}
@@ -164,12 +167,13 @@ fn UserPage() -> impl IntoView {
 }
 
 /// Renders the home page of your application.
+#[allow(clippy::too_many_lines)]
 #[component]
 fn HomePage() -> impl IntoView {
     let add_user = Action::<AddUser, _>::server();
     let value = Signal::derive(move || add_user.value().get().unwrap_or(Ok(())));
 
-    let leaders = create_resource(|| (), |_| async move { get_leaders().await });
+    let leaders = create_resource(|| (), |()| async move { get_leaders().await });
 
     view! {
         <h1 id="finding-the-password">"Finding the password"</h1>
