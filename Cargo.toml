@@ -20,7 +20,7 @@ console_error_panic_hook = "0.1"
 dashmap = "6.1.0"
 http = "1"
 jiff = { version = "0.1.14", features = ["serde"] }
-leptos = { version = "0.6" }
+leptos = { version = "0.7" }
 leptos_axum = { version = "0.6", optional = true }
 leptos_meta = { version = "0.6" }
 leptos_router = { version = "0.6" }
