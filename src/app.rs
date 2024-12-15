@@ -1,9 +1,10 @@
 use leptos::{either::Either, prelude::*};
-use leptos_meta::{provide_meta_context, MetaTags, Stylesheet, Title};
+use leptos_meta::{MetaTags, Stylesheet, Title, provide_meta_context};
 use leptos_router::{
+    NavigateOptions,
     components::{Route, Router, Routes},
     hooks::{use_navigate, use_params_map},
-    path, NavigateOptions,
+    path,
 };
 
 use crate::user::{Completion, User};
@@ -131,6 +132,12 @@ pub fn App() -> impl IntoView {
                 <Routes fallback=|| "Page not found.".into_view()>
                     <Route path=path!("") view=HomePage />
                     <Route path=path!("/u/:username") view=UserPage />
+                    <Route
+                        path=path!("/*any")
+                        view=|| {
+                            view! { <h1>"Not Found"</h1> }
+                        }
+                    />
                 </Routes>
             </main>
         </Router>
