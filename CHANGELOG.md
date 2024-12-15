@@ -3,6 +3,13 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 ---
+## [0.1.4](https://github.com/lukehsiao/find-the-password/compare/v0.1.3..v0.1.4) - 2024-12-15
+
+### Bug Fixes
+
+- show a Not Found page if bad route - ([00a0a6b](https://github.com/lukehsiao/find-the-password/commit/00a0a6b5ffc0dfeae15ce2b32eddb72550202e19)) - Luke Hsiao
+
+---
 ## [0.1.3](https://github.com/lukehsiao/find-the-password/compare/v0.1.2..v0.1.3) - 2024-12-15
 
 ### Performance
