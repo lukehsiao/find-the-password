@@ -1,47 +1,49 @@
-use leptos::*;
-use leptos_meta::{provide_meta_context, Stylesheet, Title};
-use leptos_router::{use_params_map, ActionForm, NavigateOptions, Route, Router, Routes};
-
-use crate::{
-    error_template::{AppError, ErrorTemplate},
-    user::{Completion, User},
+use leptos::{either::Either, prelude::*};
+use leptos_meta::{provide_meta_context, MetaTags, Stylesheet, Title};
+use leptos_router::{
+    components::{Route, Router, Routes},
+    hooks::{use_navigate, use_params_map},
+    path, NavigateOptions,
 };
+
+use crate::user::{Completion, User};
 
 /// Add a new user to the user map.
 #[allow(clippy::unused_async)]
-#[server(AddUser)]
+#[server(AddUser, "/api")]
 pub async fn add_user(username: String) -> Result<(), ServerFnError> {
-    use crate::state::Internal;
-    use crate::user::User;
+    use crate::user::{User, Users};
+    use std::sync::Arc;
     if username.is_empty() {
         return Err(ServerFnError::ServerError(
             "username must not just be whitespace".to_string(),
         ));
     }
-    let state = expect_context::<Internal>();
-    if state.usermap.contains_key(&username) {
+    let usermap = expect_context::<Arc<Users>>();
+    if usermap.contains_key(&username) {
         Err(ServerFnError::ServerError(
             "username is already taken".to_string(),
         ))
     } else {
         leptos_axum::redirect(format!("/u/{}", &username).as_str());
-        state.usermap.insert(username.clone(), User::new(username));
+        usermap.insert(username.clone(), User::new(username));
         Ok(())
     }
 }
 
 /// Get a user.
 #[allow(clippy::unused_async)]
-#[server(GetUser)]
+#[server(GetUser, "/api")]
 pub async fn get_user(username: String) -> Result<User, ServerFnError> {
-    use crate::state::Internal;
     if username.is_empty() {
         return Err(ServerFnError::ServerError(
             "username must not just be whitespace".to_string(),
         ));
     }
-    let state = expect_context::<Internal>();
-    let result = if let Some(user) = state.usermap.get(&username) {
+    use crate::user::Users;
+    use std::sync::Arc;
+    let usermap = expect_context::<Arc<Users>>();
+    let result = if let Some(user) = usermap.get(&username) {
         Ok((*user).clone())
     } else {
         // No user, just go home
@@ -55,16 +57,17 @@ pub async fn get_user(username: String) -> Result<User, ServerFnError> {
 
 /// Get a user's password file
 #[allow(clippy::unused_async)]
-#[server(GetUserPasswords)]
+#[server(GetUserPasswords, "/api")]
 pub async fn get_user_passwords(username: String) -> Result<String, ServerFnError> {
-    use crate::state::Internal;
     if username.is_empty() {
         return Err(ServerFnError::ServerError(
             "username must not just be whitespace".to_string(),
         ));
     }
-    let state = expect_context::<Internal>();
-    let result = if let Some(user) = state.usermap.get(&username) {
+    use crate::user::Users;
+    use std::sync::Arc;
+    let usermap = expect_context::<Arc<Users>>();
+    let result = if let Some(user) = usermap.get(&username) {
         Ok(user.get_passwords())
     } else {
         // No user, just go home
@@ -77,16 +80,39 @@ pub async fn get_user_passwords(username: String) -> Result<String, ServerFnErro
 
 /// Read the current leaderboard.
 #[allow(clippy::unused_async)]
-#[server(GetLeaders)]
+#[server(GetLeaders, "/api")]
 pub async fn get_leaders() -> Result<Vec<Completion>, ServerFnError> {
-    use crate::state::Internal;
-    let state = expect_context::<Internal>();
-    let leaders = (*state.leaderboard).lock().unwrap().clone();
+    use crate::user::Completion;
+    use std::sync::{Arc, Mutex};
+    let leaders = expect_context::<Arc<Mutex<Vec<Completion>>>>()
+        .lock()
+        .unwrap()
+        .clone();
     Ok(leaders)
 }
 
-#[allow(clippy::module_name_repetitions)]
+pub fn shell(options: LeptosOptions) -> impl IntoView {
+    view! {
+        <!DOCTYPE html>
+        <html lang="en">
+            <head>
+                <meta charset="utf-8" />
+                <meta name="viewport" content="width=device-width, initial-scale=1" />
+                <AutoReload options=options.clone() />
+                <HydrationScripts options />
+                <link rel="stylesheet" id="leptos" href="/pkg/session_auth_axum.css" />
+                <link rel="shortcut icon" type="image/ico" href="/favicon.ico" />
+                <MetaTags />
+            </head>
+            <body>
+                <App />
+            </body>
+        </html>
+    }
+}
+
 #[component]
+#[allow(clippy::module_name_repetitions)]
 #[must_use]
 pub fn App() -> impl IntoView {
     // Provides context that manages stylesheets, titles, meta tags, etc.
@@ -100,15 +126,11 @@ pub fn App() -> impl IntoView {
         <Title text="Challenge: Find the Password" />
 
         // content for this welcome page
-        <Router fallback=|| {
-            let mut outside_errors = Errors::default();
-            outside_errors.insert_with_default_key(AppError::NotFound);
-            view! { <ErrorTemplate outside_errors /> }.into_view()
-        }>
+        <Router>
             <main>
-                <Routes>
-                    <Route path="" view=HomePage />
-                    <Route path="/u/:username" view=UserPage />
+                <Routes fallback=|| "Page not found.".into_view()>
+                    <Route path=path!("") view=HomePage />
+                    <Route path=path!("/u/:username") view=UserPage />
                 </Routes>
             </main>
         </Router>
@@ -120,8 +142,8 @@ pub fn App() -> impl IntoView {
 fn UserPage() -> impl IntoView {
     let params = use_params_map();
     // let username = move || params.with(|params| params.get("username").cloned());
-    let user = create_resource(
-        move || params.get().get("username").cloned().unwrap_or_default(),
+    let user = Resource::new(
+        move || params.get().get("username").unwrap_or_default(),
         move |username| async move {
             if username.is_empty() {
                 None
@@ -140,25 +162,26 @@ fn UserPage() -> impl IntoView {
                     .map(|user| {
                         if let Some(Ok(user)) = user {
                             let username = user.username.clone();
-                            view! {
-                                <h1 id="username">"Hi, "{username.clone()}"!"</h1>
-                                <p>
-                                    "Glad to have you join us for this challenge! Download your password file by clicking the link below."
-                                </p>
-                                <a
-                                    class="button"
+                            Either::Left(
+                                view! {
+                                    <h1 id="username">"Hi, "{username.clone()}"!"</h1>
+                                    <p>
+                                        "Glad to have you join us for this challenge! Download your password file by clicking the link below."
+                                    </p>
+                                    <a
+                                        class="button"
 
-                                    href=format!("/u/{}/passwords.txt", &user.username)
-                                    download="passwords.txt"
-                                >
-                                    "Get your passwords.txt"
-                                </a>
-                            }
-                                .into_view()
+                                        href=format!("/u/{}/passwords.txt", &user.username)
+                                        download="passwords.txt"
+                                    >
+                                        "Get your passwords.txt"
+                                    </a>
+                                },
+                            )
                         } else {
-                            let navigate = leptos_router::use_navigate();
+                            let navigate = use_navigate();
                             navigate("/", NavigateOptions::default());
-                            ().into_view()
+                            Either::Right(())
                         }
                     })
             }}
@@ -170,10 +193,10 @@ fn UserPage() -> impl IntoView {
 #[allow(clippy::too_many_lines)]
 #[component]
 fn HomePage() -> impl IntoView {
-    let add_user = Action::<AddUser, _>::server();
+    let add_user = ServerAction::<AddUser>::new();
     let value = Signal::derive(move || add_user.value().get().unwrap_or(Ok(())));
 
-    let leaders = create_resource(|| (), |()| async move { get_leaders().await });
+    let leaders = Resource::new(|| (), |()| async move { get_leaders().await });
 
     view! {
         <h1 id="finding-the-password">"Finding the password"</h1>
@@ -214,20 +237,7 @@ fn HomePage() -> impl IntoView {
         <ErrorBoundary fallback=move |error| {
             view! {
                 <div class="error">
-                    <p>
-                        {move || {
-                            error
-                                .get()
-                                .into_iter()
-                                .next()
-                                .unwrap()
-                                .1
-                                .to_string()
-                                .strip_prefix("error running server function: ")
-                                .unwrap()
-                                .to_string()
-                        }}
-                    </p>
+                    <p>{move || { error.get().into_iter().next().unwrap().1.to_string() }}</p>
                 </div>
                 <ActionForm action=add_user>
                     <input type="text" placeholder="Your username" name="username" required />

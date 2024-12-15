@@ -1,7 +1,5 @@
 use http::status::StatusCode;
-use leptos::{
-    component, create_rw_signal, view, Errors, For, IntoView, RwSignal, SignalGetUntracked,
-};
+use leptos::prelude::*;
 use thiserror::Error;
 
 #[derive(Clone, Debug, Error)]
@@ -22,14 +20,14 @@ impl AppError {
 // A basic function to display errors served by the error boundaries.
 // Feel free to do more complicated things here than just displaying the error.
 #[allow(clippy::module_name_repetitions)]
-#[component]
 #[must_use]
+#[component]
 pub fn ErrorTemplate(
     #[prop(optional)] outside_errors: Option<Errors>,
     #[prop(optional)] errors: Option<RwSignal<Errors>>,
 ) -> impl IntoView {
     let errors = match outside_errors {
-        Some(e) => create_rw_signal(e),
+        Some(e) => RwSignal::new(e),
         None => match errors {
             Some(e) => e,
             None => panic!("No Errors found and we expected errors!"),
@@ -49,7 +47,7 @@ pub fn ErrorTemplate(
     // this may be customized by the specific application
     #[cfg(feature = "ssr")]
     {
-        use leptos::use_context;
+        use leptos::prelude::use_context;
         use leptos_axum::ResponseOptions;
         let response = use_context::<ResponseOptions>();
         if let Some(response) = response {

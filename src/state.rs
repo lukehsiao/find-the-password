@@ -1,5 +1,6 @@
 use axum::extract::FromRef;
-use leptos::LeptosOptions;
+use leptos::prelude::LeptosOptions;
+use leptos_axum::AxumRouteListing;
 use std::sync::{Arc, Mutex};
 
 use crate::user::{Completion, Users};
@@ -9,4 +10,5 @@ pub struct Internal {
     pub leptos_options: LeptosOptions,
     pub usermap: Arc<Users>,
     pub leaderboard: Arc<Mutex<Vec<Completion>>>,
+    pub routes: Vec<AxumRouteListing>,
 }
