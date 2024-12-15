@@ -3,6 +3,17 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 ---
+## [0.1.3](https://github.com/lukehsiao/find-the-password/compare/v0.1.2..v0.1.3) - 2024-12-15
+
+### Performance
+
+- don't log axum at trace level by default - ([6e7e0e3](https://github.com/lukehsiao/find-the-password/commit/6e7e0e3a8ca021fafa8021c8b4d39f11c8f99b20)) - Luke Hsiao
+
+### Documentation
+
+- **(README)** add todo items - ([ef2cf2b](https://github.com/lukehsiao/find-the-password/commit/ef2cf2b36958ffc32e5b35e1b37ca4d18da15309)) - Luke Hsiao
+
+---
 ## [0.1.2](https://github.com/lukehsiao/find-the-password/compare/v0.1.1..v0.1.2) - 2024-12-15
 
 This doesn't change any functionality, but significantly changes the underlying code to use the latest version of Leptos.
