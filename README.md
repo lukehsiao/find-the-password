@@ -140,3 +140,8 @@ Status code distribution:
 ```
 
 So, as long as there isn't a huge group of kids trying at a given time, it is likely a single server running locally can handle the load.
+
+## TODO
+
+- Figure out how to appease pedantic clippy lints
+- Actually have tests, and run them in CI
