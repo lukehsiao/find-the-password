@@ -3,6 +3,15 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 ---
+## [0.1.2](https://github.com/lukehsiao/find-the-password/compare/v0.1.1..v0.1.2) - 2024-12-15
+
+This doesn't change any functionality, but significantly changes the underlying code to use the latest version of Leptos.
+
+### Refactor
+
+- upgrade to leptos 0.7 - ([8d991ad](https://github.com/lukehsiao/find-the-password/commit/8d991adbed7e8256d4d863cb3484d436d59ab2f2)) - Luke Hsiao
+
+---
 ## [0.1.1](https://github.com/lukehsiao/find-the-password/compare/v0.1.0..v0.1.1) - 2024-11-21
 
 ### Documentation
