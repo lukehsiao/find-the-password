@@ -40,9 +40,9 @@ async fn leptos_routes_handler(state: State<Internal>, req: Request<AxumBody>) -
 async fn main() {
     use std::sync::{Arc, Mutex};
 
-    use axum::{routing, Router};
+    use axum::{Router, routing};
     use leptos::{logging, prelude::*};
-    use leptos_axum::{generate_route_list, LeptosRoutes};
+    use leptos_axum::{LeptosRoutes, generate_route_list};
     use tower_http::compression::CompressionLayer;
     use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
@@ -57,7 +57,7 @@ async fn main() {
     tracing_subscriber::registry()
         .with(
             tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| "challenge=debug,tower_http=debug,axum=trace".into()),
+                .unwrap_or_else(|_| "challenge=debug,tower_http=debug,axum=debug".into()),
         )
         .with(tracing_subscriber::fmt::layer())
         .init();

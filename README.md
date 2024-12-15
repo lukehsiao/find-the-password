@@ -89,51 +89,51 @@ cargo run --release --example=passwords < /path/to/your/passwords.txt
 ## Benchmarks
 
 Just as a ballpark benchmark for actual password checking, I ran a test with [`oha`](https://github.com/hatoo/oha) against a release-built version of the server running on the same machine.
-This shows throughput of **just under 60k requests/second** due to the full in-memory implementation.
+This shows throughput of **just over 77k requests/second** due to the full in-memory implementation.
 This is run on a PC with 64 GB of DDR5 RAM and a Ryzen 7 7800X3D (8-core, 16-thread).
 
 ```
 ❯ oha -n 500000 -c 10 --disable-keepalive http://localhost:3000/u/luke/check/asdf
 Summary:
-  Success rate:     100.00%
-  Total:        8.5331 secs
-  Slowest:     0.0011 secs
-  Fastest:     0.0001 secs
-  Average:     0.0002 secs
-  Requests/sec: 58595.5887
+  Success rate: 100.00%
+  Total:        6.4367 secs
+  Slowest:      0.0013 secs
+  Fastest:      0.0001 secs
+  Average:      0.0001 secs
+  Requests/sec: 77679.7548
 
   Total data:   2.38 MiB
   Size/request: 5 B
-  Size/sec:     286.11 KiB
+  Size/sec:     379.29 KiB
 
 Response time histogram:
   0.000 [1]      |
-  0.000 [335249] |■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■
-  0.000 [136740] |■■■■■■■■■■■■■
-  0.000 [16186]  |■
-  0.000 [8683]   |
-  0.001 [1556]   |
-  0.001 [810]    |
-  0.001 [445]    |
-  0.001 [184]    |
-  0.001 [119]    |
-  0.001 [27]     |
+  0.000 [489236] |■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■
+  0.000 [10455]  |
+  0.000 [273]    |
+  0.001 [17]     |
+  0.001 [2]      |
+  0.001 [2]      |
+  0.001 [3]      |
+  0.001 [1]      |
+  0.001 [1]      |
+  0.001 [9]      |
 
 Response time distribution:
   10.00% in 0.0001 secs
   25.00% in 0.0001 secs
-  50.00% in 0.0002 secs
-  75.00% in 0.0002 secs
+  50.00% in 0.0001 secs
+  75.00% in 0.0001 secs
   90.00% in 0.0002 secs
-  95.00% in 0.0003 secs
-  99.00% in 0.0005 secs
-  99.90% in 0.0008 secs
-  99.99% in 0.0010 secs
+  95.00% in 0.0002 secs
+  99.00% in 0.0002 secs
+  99.90% in 0.0003 secs
+  99.99% in 0.0004 secs
 
 
 Details (average, fastest, slowest):
-  DNS+dialup:   0.0001 secs, 0.0000 secs, 0.0008 secs
-  DNS-lookup:   0.0000 secs, 0.0000 secs, 0.0005 secs
+  DNS+dialup:   0.0001 secs, 0.0000 secs, 0.0009 secs
+  DNS-lookup:   0.0000 secs, 0.0000 secs, 0.0007 secs
 
 Status code distribution:
   [200] 500000 responses
