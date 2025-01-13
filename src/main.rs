@@ -40,9 +40,9 @@ async fn leptos_routes_handler(state: State<Internal>, req: Request<AxumBody>) -
 async fn main() {
     use std::sync::{Arc, Mutex};
 
-    use axum::{Router, routing};
+    use axum::{routing, Router};
     use leptos::{logging, prelude::*};
-    use leptos_axum::{LeptosRoutes, generate_route_list};
+    use leptos_axum::{generate_route_list, LeptosRoutes};
     use tower_http::compression::CompressionLayer;
     use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 

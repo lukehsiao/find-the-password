@@ -1,10 +1,9 @@
 use leptos::{either::Either, prelude::*};
-use leptos_meta::{MetaTags, Stylesheet, Title, provide_meta_context};
+use leptos_meta::{provide_meta_context, MetaTags, Stylesheet, Title};
 use leptos_router::{
-    NavigateOptions,
     components::{Route, Router, Routes},
     hooks::{use_navigate, use_params_map},
-    path,
+    path, NavigateOptions,
 };
 
 use crate::user::{Completion, User};
