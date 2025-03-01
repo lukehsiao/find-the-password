@@ -212,12 +212,12 @@ fn HomePage() -> impl IntoView {
         </p>
         <h2 id="how-to-play">"How to Play"</h2>
         <ol>
-            <li>"Create a new user by choosing a username and entering a key from Luke."</li>
+            <li>"Create a new user by choosing a username below."</li>
             <li>
-                "On your user page, click \"Download passwords\" to get your personal list of passwords."
+                "On your user page, click \"Get your passwords.txt\" to get your personal list of passwords."
             </li>
             <li>
-                "Check if a password is the one I lost by checking this website with it in the URL following this template:"
+                "Check if a password is the one I lost by checking this website with the target password in the URL following this template:"
                 <pre>
                     <code>"https://challenge.hsiao.dev/u/{username}/check/{password}"</code>
                 </pre>"where "<code>"username"</code>" is your username and "<code>"password"</code>

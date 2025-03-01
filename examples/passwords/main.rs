@@ -3,8 +3,8 @@ use std::{
     process, thread,
 };
 
-use anyhow::{anyhow, ensure, Result};
-use futures::{stream, StreamExt};
+use anyhow::{Result, anyhow, ensure};
+use futures::{StreamExt, stream};
 use reqwest::ClientBuilder;
 use tracing::{debug, info};
 
@@ -16,7 +16,7 @@ async fn main() -> Result<()> {
     io::stdin().read_to_string(&mut input)?;
     let urls: Vec<String> = input
         .lines()
-        .map(|pass| format!("http://localhost:3000/u/luke/check/{pass}"))
+        .map(|pass| format!("https://challenge.hsiao.dev/u/luke/check/{pass}"))
         .collect();
 
     let client = ClientBuilder::new().build()?;
