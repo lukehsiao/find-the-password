@@ -7,10 +7,6 @@ _default:
 check:
 	cargo clippy --all-features --all-targets --locked -- -W clippy::pedantic -D warnings
 
-# check security advisories
-audit:
-	cargo deny check advisories
-
 # Check links in markdown files
 link-check:
 	-lychee -E '**/*.md'
@@ -37,7 +33,7 @@ fmt:
 
 # Sets up a watcher that lints, tests, and builds
 watch:
-	cargo watch -x 'clippy --all-targets --all-features -- -W clippy::pedantic -D warnings' -x 'leptos watch'
+	bacon
 
 # Update the changelog using git-cliff
 _update_changelog version:
