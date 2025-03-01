@@ -224,8 +224,8 @@ fn HomePage() -> impl IntoView {
                 is the password you are checking.
             </li>
             <li>
-                "If the password is correct, you'll see "<code>"True"</code>
-                ", and if it is incorrect, you will see "<code>"False"</code>"."
+                "If the password is correct, you'll see "<code>"true"</code>
+                ", and if it is incorrect, you will see "<code>"false"</code>"."
             </li>
         </ol>
         <h2 id="rules">"Rules"</h2>
