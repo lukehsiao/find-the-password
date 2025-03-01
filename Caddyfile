@@ -1,0 +1,3 @@
+challenge.hsiao.dev {
+	reverse_proxy localhost:8888
+}
