@@ -1,9 +1,10 @@
 use leptos::{either::Either, prelude::*};
-use leptos_meta::{provide_meta_context, MetaTags, Stylesheet, Title};
+use leptos_meta::{MetaTags, Stylesheet, Title, provide_meta_context};
 use leptos_router::{
+    NavigateOptions,
     components::{Route, Router, Routes},
     hooks::{use_navigate, use_params_map},
-    path, NavigateOptions,
+    path,
 };
 
 use crate::user::{Completion, User};
@@ -235,7 +236,7 @@ fn HomePage() -> impl IntoView {
             <li>"If you can solve it, you have to share with me what you did."</li>
             <li>"Only use the url with your own name in it, don't impersonate others."</li>
             <li>
-                "There is no limit to how many times you can try. If you want to completely restart, we can reset your user."
+                "There is no limit to how many times you can try. If you want to completely restart, make a new user."
             </li>
         </ul>
         <h2 id="lets-go">"Let's Go!"</h2>
