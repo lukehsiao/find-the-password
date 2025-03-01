@@ -1,6 +1,6 @@
 use dashmap::DashMap;
 use jiff::{Span, Timestamp};
-use rand::{distributions::Alphanumeric, rngs::StdRng, Rng, SeedableRng};
+use rand::{Rng, SeedableRng, distr::Alphanumeric, rngs::StdRng};
 use serde::{Deserialize, Serialize};
 #[cfg(feature = "ssr")]
 use tracing::info;
