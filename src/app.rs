@@ -15,6 +15,7 @@ use crate::user::{Completion, User};
 pub async fn add_user(username: String) -> Result<(), ServerFnError> {
     use crate::user::{User, Users};
     use std::sync::Arc;
+    use tracing::info;
     if username.is_empty() {
         return Err(ServerFnError::ServerError(
             "username must not just be whitespace".to_string(),
@@ -26,6 +27,7 @@ pub async fn add_user(username: String) -> Result<(), ServerFnError> {
             "username is already taken".to_string(),
         ))
     } else {
+        info!(?username, "added user");
         leptos_axum::redirect(format!("/u/{}", &username).as_str());
         usermap.insert(username.clone(), User::new(username));
         Ok(())

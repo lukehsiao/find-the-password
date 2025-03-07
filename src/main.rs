@@ -40,10 +40,11 @@ async fn leptos_routes_handler(state: State<Internal>, req: Request<AxumBody>) -
 async fn main() {
     use std::sync::{Arc, Mutex};
 
-    use axum::{routing, Router};
-    use leptos::{logging, prelude::*};
-    use leptos_axum::{generate_route_list, LeptosRoutes};
+    use axum::{Router, routing};
+    use leptos::prelude::*;
+    use leptos_axum::{LeptosRoutes, generate_route_list};
     use tower_http::compression::CompressionLayer;
+    use tracing::info;
     use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
     use challenge::{
@@ -94,7 +95,7 @@ async fn main() {
         .with_state(app_state);
 
     let listener = tokio::net::TcpListener::bind(&addr).await.unwrap();
-    logging::log!("listening on http://{}", &addr);
+    info!("listening on http://{}", &addr);
     axum::serve(listener, app.into_make_service())
         .with_graceful_shutdown(shutdown_signal())
         .await
