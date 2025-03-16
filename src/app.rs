@@ -9,6 +9,17 @@ use leptos_router::{
 
 use crate::user::{Completion, User};
 
+/// Enforce that a username matches this specific pattern.
+#[cfg(feature = "ssr")]
+fn valid_username(username: &str) -> bool {
+    use once_cell::sync::Lazy;
+    use regex::Regex;
+
+    static RE: Lazy<Regex> = Lazy::new(|| Regex::new(r"^[a-zA-Z0-9]{3,32}$").unwrap());
+    dbg!(&username);
+    RE.is_match(username)
+}
+
 /// Add a new user to the user map.
 #[allow(clippy::unused_async)]
 #[server(AddUser, "/api")]
@@ -16,11 +27,14 @@ pub async fn add_user(username: String) -> Result<(), ServerFnError> {
     use crate::user::{User, Users};
     use std::sync::Arc;
     use tracing::info;
-    if username.is_empty() {
+
+    // Guard classes for username validation
+    if !valid_username(&username) {
         return Err(ServerFnError::ServerError(
-            "username must not just be whitespace".to_string(),
+            "Error: username must be simple ASCII characters (a-zA-Z) or numbers (0-9) with no whitespace, and between 3 and 32 characters in length.".to_string(),
         ));
     }
+
     let usermap = expect_context::<Arc<Users>>();
     if usermap.contains_key(&username) {
         Err(ServerFnError::ServerError(
@@ -246,7 +260,12 @@ fn HomePage() -> impl IntoView {
         <ErrorBoundary fallback=move |error| {
             view! {
                 <div class="error">
-                    <p>{move || { error.get().into_iter().next().unwrap().1.to_string() }}</p>
+                    <p>
+                        {move || {
+                            let err = error.get().into_iter().next().unwrap().1.to_string();
+                            err.strip_prefix("error running server function: ").unwrap().to_string()
+                        }}
+                    </p>
                 </div>
                 <ActionForm action=add_user>
                     <input type="text" placeholder="Your username" name="username" required />
