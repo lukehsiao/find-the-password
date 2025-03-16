@@ -3,6 +3,18 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 ---
+## [0.1.5](https://github.com/lukehsiao/find-the-password/compare/v0.1.4..v0.1.5) - 2025-03-16
+
+### Bug Fixes
+
+- use the correct capitalization in the instructions - ([b346d55](https://github.com/lukehsiao/find-the-password/commit/b346d5531186f92c3aa4333b369a3eb30ab00db9)) - Luke Hsiao
+- validate username more strictly - ([aeb1baa](https://github.com/lukehsiao/find-the-password/commit/aeb1baaca952c7d325de663663197a1f3fcee912)) - Luke Hsiao
+
+### Refactor
+
+- use tracing for all logs - ([f4cfe01](https://github.com/lukehsiao/find-the-password/commit/f4cfe010eeb61c0a9b67f9ff4fd8c072590e4377)) - Luke Hsiao
+
+---
 ## [0.1.4](https://github.com/lukehsiao/find-the-password/compare/v0.1.3..v0.1.4) - 2024-12-15
 
 ### Bug Fixes
