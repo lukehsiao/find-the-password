@@ -16,7 +16,6 @@ fn valid_username(username: &str) -> bool {
     use regex::Regex;
 
     static RE: Lazy<Regex> = Lazy::new(|| Regex::new(r"^[a-zA-Z0-9]{3,32}$").unwrap());
-    dbg!(&username);
     RE.is_match(username)
 }
 
