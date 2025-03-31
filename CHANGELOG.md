@@ -3,6 +3,21 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 ---
+## [0.1.6](https://github.com/lukehsiao/find-the-password/compare/v0.1.5..v0.1.6) - 2025-03-31
+
+### Features
+
+- friendly display time to complete, rounded to seconds - ([3aa868f](https://github.com/lukehsiao/find-the-password/commit/3aa868fde5fdf7d09cab9bf057da33cf5377b387)) - Luke Hsiao
+
+### Bug Fixes
+
+- remove leftover debug statement - ([25f080f](https://github.com/lukehsiao/find-the-password/commit/25f080f96527323439379b404465859ab2967eca)) - Luke Hsiao
+
+### Documentation
+
+- **(README)** add instructions for docker - ([cb367b4](https://github.com/lukehsiao/find-the-password/commit/cb367b441535ac5646103188028370cc97b3e92c)) - Luke Hsiao
+
+---
 ## [0.1.5](https://github.com/lukehsiao/find-the-password/compare/v0.1.4..v0.1.5) - 2025-03-16
 
 ### Bug Fixes
