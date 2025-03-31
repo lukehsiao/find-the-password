@@ -1,3 +1,4 @@
+use jiff::{SpanRound, Unit};
 use leptos::{either::Either, prelude::*};
 use leptos_meta::{MetaTags, Stylesheet, Title, provide_meta_context};
 use leptos_router::{
@@ -302,7 +303,17 @@ fn HomePage() -> impl IntoView {
                                             view! {
                                                 <tr>
                                                     <td>{completion.username}</td>
-                                                    <td>{completion.time_to_solve.to_string()}</td>
+                                                    <td>
+                                                        {
+                                                            let rounded = completion
+                                                                .time_to_solve
+                                                                .round(
+                                                                    SpanRound::new().largest(Unit::Hour).smallest(Unit::Second),
+                                                                )
+                                                                .unwrap();
+                                                            format!("{0:#}", rounded)
+                                                        }
+                                                    </td>
                                                     <td style="text-align: right;">
                                                         <code>{completion.attempts_to_solve}</code>
                                                     </td>
