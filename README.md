@@ -43,6 +43,16 @@ My blog post sets more context around the design of this server and some anecdot
 
 </div>
 
+## Running via Docker
+
+We have a docker image of the latest commit on main.
+
+To run, you can do something like:
+
+```
+docker run -d -p 8080:8080 --name find-the-password ghcr.io/lukehsiao/find-the-password:latest
+```
+
 ## Building and Running
 
 ### Prerequisites
