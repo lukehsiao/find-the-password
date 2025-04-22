@@ -14,18 +14,18 @@ rust-version = "1.85"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-anyhow = "1.0.97"
+anyhow = "1.0.98"
 axum = { version = "0.7", optional = true, features = ["macros"] }
 console_error_panic_hook = "0.1"
 dashmap = "6.1.0"
 http = "1"
-jiff = { version = "0.2.6", features = ["serde"] }
+jiff = { version = "0.2.10", features = ["serde"] }
 leptos = { version = "0.7" }
 leptos_axum = { version = "0.7", optional = true }
 leptos_meta = { version = "0.7" }
 leptos_router = { version = "0.7" }
 once_cell = "1.21.3"
-rand = { version = "0.9.0", default-features = false, features = ["std_rng"] }
+rand = { version = "0.9.1", default-features = false, features = ["std_rng"] }
 regex = "1.11.1"
 serde = { version = "1.0.219", features = ["derive"] }
 thiserror = "2"
