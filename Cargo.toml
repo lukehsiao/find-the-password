@@ -22,7 +22,7 @@ http = "1"
 jiff = { version = "0.2.10", features = ["serde"] }
 leptos = { version = "0.7" }
 leptos_axum = { version = "0.7", optional = true }
-leptos_meta = { version = "0.7" }
+leptos_meta = { version = "0.8" }
 leptos_router = { version = "0.7" }
 once_cell = "1.21.3"
 rand = { version = "0.9.1", default-features = false, features = ["std_rng"] }
