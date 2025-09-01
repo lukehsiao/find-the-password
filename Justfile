@@ -3,23 +3,33 @@
 _default:
 	@just --list
 
+# Build a docker image locally with tag (default: local-dev)
+[group('packaging')]
+image tag="local":
+    podman build --tag find-the-password:{{tag}} --file Containerfile {{justfile_directory()}}
+
 # Runs clippy on the sources
+[group('dev')]
 check:
 	cargo clippy --all-features --all-targets --locked -- -W clippy::pedantic -D warnings
 
 # Check links in markdown files
+[group('dev')]
 link-check:
 	-lychee -E '**/*.md'
 
 # Runs nextest
+[group('dev')]
 test:
 	cargo nextest run
 
 # Run the release binary
+[group('dev')]
 run addr="0.0.0.0:3000":
 	LEPTOS_SITE_ADDR={{addr}} {{justfile_directory()}}/app/challenge
 
 # Build the release binary
+[group('dev')]
 build:
 	cargo leptos build --release
 	mkdir -p {{justfile_directory()}}/app
@@ -28,10 +38,12 @@ build:
 	cp {{justfile_directory()}}/Cargo.toml {{justfile_directory()}}/app/
 
 # Format all sources, leptos-style
+[group('dev')]
 fmt:
 	leptosfmt {{justfile_directory()}}
 
 # Sets up a watcher that lints, tests, and builds
+[group('dev')]
 watch:
 	bacon
 
@@ -69,6 +81,7 @@ _tlog describe version:
 	@git stats -r {{describe}}..HEAD
 
 # Target can be ["major", "minor", "patch", or a version]
+[group('release')]
 release target: 
 	#!/usr/bin/env python3
 	# Inspired-by: https://git.sr.ht/~sircmpwn/dotfiles/tree/master/bin/semver

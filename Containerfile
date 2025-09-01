@@ -1,4 +1,4 @@
-FROM rust:1.89-bullseye AS builder
+FROM rust:1.89-bookworm AS builder
 
 # Install cargo-binstall, which makes it easier to install other
 # cargo extensions like cargo-leptos
@@ -26,6 +26,7 @@ RUN cargo leptos build --release -vv
 
 FROM debian:bookworm-slim AS runtime
 WORKDIR /app
+
 RUN apt-get update -y \
   && apt-get install -y --no-install-recommends openssl ca-certificates \
   && apt-get autoremove -y \
