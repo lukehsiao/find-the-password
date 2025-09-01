@@ -83,10 +83,13 @@ async fn main() {
 
     // build our application with a route
     let app = Router::new()
-        .route("/u/:user/check/:password", routing::get(check_password))
-        .route("/u/:user/passwords.txt", routing::get(get_passwords))
         .route(
-            "/api/*fn_name",
+            "/u/{username}/check/{password}",
+            routing::get(check_password),
+        )
+        .route("/u/{username}/passwords.txt", routing::get(get_passwords))
+        .route(
+            "/api/{*fn_name}",
             routing::get(server_fn_handler).post(server_fn_handler),
         )
         .leptos_routes_with_handler(routes, routing::get(leptos_routes_handler))

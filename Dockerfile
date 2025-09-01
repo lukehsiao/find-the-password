@@ -1,4 +1,4 @@
-FROM rust:1.85-bullseye AS builder
+FROM rust:1.89-bullseye AS builder
 
 # Install cargo-binstall, which makes it easier to install other
 # cargo extensions like cargo-leptos
@@ -49,4 +49,3 @@ EXPOSE 8080
 
 # Run the server
 CMD ["/app/challenge"]
-

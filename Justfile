@@ -24,7 +24,7 @@ build:
 	cargo leptos build --release
 	mkdir -p {{justfile_directory()}}/app
 	cp {{justfile_directory()}}/target/release/challenge {{justfile_directory()}}/app/
-	cp -r {{justfile_directory()}}/target/site {{justfile_directory()}}/app/site
+	cp -r {{justfile_directory()}}/target/site/* {{justfile_directory()}}/app/site
 	cp {{justfile_directory()}}/Cargo.toml {{justfile_directory()}}/app/
 
 # Format all sources, leptos-style

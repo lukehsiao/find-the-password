@@ -117,7 +117,6 @@ pub fn shell(options: LeptosOptions) -> impl IntoView {
                 <meta name="viewport" content="width=device-width, initial-scale=1" />
                 <AutoReload options=options.clone() />
                 <HydrationScripts options />
-                <link rel="stylesheet" id="leptos" href="/pkg/session_auth_axum.css" />
                 <link rel="shortcut icon" type="image/ico" href="/favicon.ico" />
                 <MetaTags />
             </head>
@@ -148,12 +147,6 @@ pub fn App() -> impl IntoView {
                 <Routes fallback=|| "Page not found.".into_view()>
                     <Route path=path!("") view=HomePage />
                     <Route path=path!("/u/:username") view=UserPage />
-                    <Route
-                        path=path!("/*any")
-                        view=|| {
-                            view! { <h1>"Not Found"</h1> }
-                        }
-                    />
                 </Routes>
             </main>
         </Router>
@@ -263,7 +256,7 @@ fn HomePage() -> impl IntoView {
                     <p>
                         {move || {
                             let err = error.get().into_iter().next().unwrap().1.to_string();
-                            err.strip_prefix("error running server function: ").unwrap().to_string()
+                            err.strip_prefix("ServerError|Error: ").unwrap().to_string()
                         }}
                     </p>
                 </div>
