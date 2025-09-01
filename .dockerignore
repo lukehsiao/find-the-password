@@ -1,0 +1,16 @@
+/app/
+bacon.toml
+Caddyfile
+cliff.toml
+end2end/
+end2end/playwright-report/
+examples/
+.git/
+.github/
+node_modules/
+pkg
+playwright/.cache/
+**/*.rs.bk
+rust-analyzer.toml
+/target/
+test-results/
