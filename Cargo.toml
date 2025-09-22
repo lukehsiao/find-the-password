@@ -14,7 +14,7 @@ rust-version = "1.89"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-anyhow = "1.0.99"
+anyhow = "1.0.100"
 axum = { version = "0.8", optional = true, features = ["macros"] }
 console_error_panic_hook = "0.1"
 dashmap = "6.1.0"
