@@ -2,8 +2,9 @@ use jiff::{SpanRound, Unit};
 use leptos::{either::Either, prelude::*};
 use leptos_meta::{MetaTags, Stylesheet, Title, provide_meta_context};
 use leptos_router::{
+    NavigateOptions,
     components::{Redirect, Route, Router, Routes},
-    hooks::use_params_map,
+    hooks::{use_navigate, use_params_map},
     path,
 };
 
@@ -144,9 +145,28 @@ pub fn App() -> impl IntoView {
                 <Routes fallback=|| "Page not found.".into_view()>
                     <Route path=path!("") view=HomePage />
                     <Route path=path!("/u/:username") view=UserPage />
+                    <Route path=path!("/u/:username/") view=RedirUserPage />
                 </Routes>
             </main>
         </Router>
+    }
+}
+/// Redirect to a user's specific page
+#[component(transparent)]
+fn RedirUserPage() -> impl IntoView {
+    let params = use_params_map();
+    let username = params.get().get("username");
+    let navigate = use_navigate();
+
+    match username {
+        Some(u) => navigate(
+            &format!("/u/{u}"),
+            NavigateOptions {
+                replace: true,
+                ..Default::default()
+            },
+        ),
+        None => navigate(&format!("/"), NavigateOptions::default()),
     }
 }
 
@@ -154,14 +174,12 @@ pub fn App() -> impl IntoView {
 #[component]
 fn UserPage() -> impl IntoView {
     let params = use_params_map();
-    // let username = move || params.with(|params| params.get("username").cloned());
     let user = Resource::new(
-        move || params.get().get("username").unwrap_or_default(),
-        move |username| async move {
-            if username.is_empty() {
-                None
-            } else {
-                Some(get_user(username).await)
+        move || params.get().get("username"),
+        |username| async {
+            match username {
+                None => None,
+                Some(u) => Some(get_user(u).await),
             }
         },
     );
