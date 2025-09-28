@@ -3,6 +3,18 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 ---
+## [0.1.7](https://github.com/lukehsiao/find-the-password/compare/v0.1.6..v0.1.7) - 2025-09-28
+
+### Bug Fixes
+
+- redirect to home on missing user - ([e0be94a](https://github.com/lukehsiao/find-the-password/commit/e0be94ae13c3a9e06f75b7a414042d6942251e3d)) - Luke Hsiao
+- support a trailing slash for user pages - ([218d319](https://github.com/lukehsiao/find-the-password/commit/218d319962e867b7012988479f78bffc3fdebe89)) - Luke Hsiao
+
+### Documentation
+
+- **(LICENSE)** render in markdown - ([eff426c](https://github.com/lukehsiao/find-the-password/commit/eff426c045a572fc65b4133d5734bf7f20421344)) - Luke Hsiao
+
+---
 ## [0.1.6](https://github.com/lukehsiao/find-the-password/compare/v0.1.5..v0.1.6) - 2025-03-31
 
 ### Features
