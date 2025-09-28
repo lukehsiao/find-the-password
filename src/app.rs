@@ -2,9 +2,8 @@ use jiff::{SpanRound, Unit};
 use leptos::{either::Either, prelude::*};
 use leptos_meta::{MetaTags, Stylesheet, Title, provide_meta_context};
 use leptos_router::{
-    NavigateOptions,
-    components::{Route, Router, Routes},
-    hooks::{use_navigate, use_params_map},
+    components::{Redirect, Route, Router, Routes},
+    hooks::use_params_map,
     path,
 };
 
@@ -63,8 +62,6 @@ pub async fn get_user(username: String) -> Result<User, ServerFnError> {
     let result = if let Some(user) = usermap.get(&username) {
         Ok((*user).clone())
     } else {
-        // No user, just go home
-        leptos_axum::redirect("/");
         Err(ServerFnError::ServerError(
             "no user with that username".to_string(),
         ))
@@ -195,9 +192,7 @@ fn UserPage() -> impl IntoView {
                                 },
                             )
                         } else {
-                            let navigate = use_navigate();
-                            navigate("/", NavigateOptions::default());
-                            Either::Right(())
+                            Either::Right(view! { <Redirect path="/" /> })
                         }
                     })
             }}
