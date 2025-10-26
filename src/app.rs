@@ -1,3 +1,5 @@
+use std::sync::{Arc, LazyLock};
+
 use jiff::{SpanRound, Unit};
 use leptos::{either::Either, prelude::*};
 use leptos_meta::{MetaTags, Stylesheet, Title, provide_meta_context};
@@ -8,15 +10,14 @@ use leptos_router::{
     path,
 };
 
-use crate::user::{Completion, User};
+use crate::user::{Completion, User, Users};
 
 /// Enforce that a username matches this specific pattern.
 #[cfg(feature = "ssr")]
 fn valid_username(username: &str) -> bool {
-    use once_cell::sync::Lazy;
     use regex::Regex;
 
-    static RE: Lazy<Regex> = Lazy::new(|| Regex::new(r"^[a-zA-Z0-9]{3,32}$").unwrap());
+    static RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^[a-zA-Z0-9]{3,32}$").unwrap());
     RE.is_match(username)
 }
 
@@ -57,17 +58,14 @@ pub async fn get_user(username: String) -> Result<User, ServerFnError> {
             "username must not just be whitespace".to_string(),
         ));
     }
-    use crate::user::Users;
-    use std::sync::Arc;
     let usermap = expect_context::<Arc<Users>>();
-    let result = if let Some(user) = usermap.get(&username) {
+    if let Some(user) = usermap.get(&username) {
         Ok((*user).clone())
     } else {
         Err(ServerFnError::ServerError(
             "no user with that username".to_string(),
         ))
-    };
-    result
+    }
 }
 
 /// Get a user's password file
@@ -79,18 +77,15 @@ pub async fn get_user_passwords(username: String) -> Result<String, ServerFnErro
             "username must not just be whitespace".to_string(),
         ));
     }
-    use crate::user::Users;
-    use std::sync::Arc;
     let usermap = expect_context::<Arc<Users>>();
-    let result = if let Some(user) = usermap.get(&username) {
+    if let Some(user) = usermap.get(&username) {
         Ok(user.get_passwords())
     } else {
         // No user, just go home
         Err(ServerFnError::ServerError(
             "no user with that username".to_string(),
         ))
-    };
-    result
+    }
 }
 
 /// Read the current leaderboard.
@@ -106,6 +101,7 @@ pub async fn get_leaders() -> Result<Vec<Completion>, ServerFnError> {
     Ok(leaders)
 }
 
+#[must_use]
 pub fn shell(options: LeptosOptions) -> impl IntoView {
     view! {
         <!DOCTYPE html>
@@ -166,7 +162,7 @@ fn RedirUserPage() -> impl IntoView {
                 ..Default::default()
             },
         ),
-        None => navigate(&format!("/"), NavigateOptions::default()),
+        None => navigate("/", NavigateOptions::default()),
     }
 }
 
@@ -296,9 +292,7 @@ fn HomePage() -> impl IntoView {
                 </tr>
             </thead>
             <tbody>
-                <Transition fallback=move || {
-                    view! {}
-                }>
+                <Transition fallback=move || {}>
                     {move || {
                         leaders
                             .get()
@@ -317,7 +311,7 @@ fn HomePage() -> impl IntoView {
                                                                     SpanRound::new().largest(Unit::Hour).smallest(Unit::Second),
                                                                 )
                                                                 .unwrap();
-                                                            format!("{0:#}", rounded)
+                                                            format!("{rounded:#}")
                                                         }
                                                     </td>
                                                     <td style="text-align: right;">

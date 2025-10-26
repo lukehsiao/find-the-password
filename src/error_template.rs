@@ -20,8 +20,8 @@ impl AppError {
 // A basic function to display errors served by the error boundaries.
 // Feel free to do more complicated things here than just displaying the error.
 #[allow(clippy::module_name_repetitions)]
-#[must_use]
 #[component]
+#[must_use]
 pub fn ErrorTemplate(
     #[prop(optional)] outside_errors: Option<Errors>,
     #[prop(optional)] errors: Option<RwSignal<Errors>>,
