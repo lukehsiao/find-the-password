@@ -8,6 +8,11 @@ use leptos::prelude::provide_context;
 
 use challenge::{app::shell, state::Internal};
 
+/// Simple healthcheck endpoint
+async fn healthcheck() -> impl IntoResponse {
+    axum::http::StatusCode::OK
+}
+
 async fn server_fn_handler(
     State(app_state): State<Internal>,
     request: Request<AxumBody>,
@@ -83,6 +88,7 @@ async fn main() {
 
     // build our application with a route
     let app = Router::new()
+        .route("/up", routing::get(healthcheck))
         .route(
             "/u/{username}/check/{password}",
             routing::get(check_password),
