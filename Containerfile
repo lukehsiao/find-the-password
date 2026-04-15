@@ -1,4 +1,4 @@
-FROM rust:1.89-bookworm AS builder
+FROM rust:1.94-bookworm AS builder
 
 # Install cargo-binstall, which makes it easier to install other
 # cargo extensions like cargo-leptos
