@@ -5,51 +5,38 @@ use axum::{
 };
 use jiff::Timestamp;
 
-use crate::{state::Internal, user::Completion};
+use crate::store::{ChallengeStore, CheckOutcome};
+
+/// Simple healthcheck endpoint.
+#[allow(clippy::unused_async)]
+pub async fn healthcheck() -> impl IntoResponse {
+    StatusCode::OK
+}
 
 /// Check a password for correctness.
 ///
-/// # Panics
-/// - If the leaderboard is unable to be locked.
+/// The literal `true`/`false` bodies and the 200/404 statuses are the
+/// contract that players' scripts depend on.
 #[allow(clippy::unused_async)]
-#[must_use]
 pub async fn check_password(
     Path((username, password)): Path<(String, String)>,
-    State(state): State<Internal>,
+    State(store): State<ChallengeStore>,
 ) -> Response {
-    match state.usermap.get_mut(&username) {
-        None => (StatusCode::NOT_FOUND).into_response(),
-        Some(mut user) => {
-            if user.solved_at.is_none() {
-                user.hits_before_solved += 1;
-            }
-            if user.check_password(&password) {
-                if user.solved_at.is_none() {
-                    user.solved_at = Some(Timestamp::now());
-                    // Solved! Add to leaderboard.
-                    (*state.leaderboard).lock().unwrap().push(Completion {
-                        username: user.username.clone(),
-                        time_to_solve: user.solved_at.unwrap() - user.created_at,
-                        attempts_to_solve: user.hits_before_solved,
-                    });
-                }
-                (StatusCode::OK, "true").into_response()
-            } else {
-                (StatusCode::OK, "false").into_response()
-            }
-        }
+    match store.check(&username, &password, Timestamp::now()) {
+        CheckOutcome::NotFound => StatusCode::NOT_FOUND.into_response(),
+        CheckOutcome::Incorrect => (StatusCode::OK, "false").into_response(),
+        CheckOutcome::Correct => (StatusCode::OK, "true").into_response(),
     }
 }
 
-/// Produce passwords.txt for a suer.
+/// Produce passwords.txt for a user.
 #[allow(clippy::unused_async)]
-#[must_use]
 pub async fn get_passwords(
     Path(username): Path<String>,
-    State(state): State<Internal>,
+    State(store): State<ChallengeStore>,
 ) -> Response {
-    match state.usermap.get(&username) {
-        None => (StatusCode::NOT_FOUND).into_response(),
-        Some(user) => (StatusCode::OK, user.passwords()).into_response(),
+    match store.passwords(&username) {
+        None => StatusCode::NOT_FOUND.into_response(),
+        Some(passwords) => (StatusCode::OK, passwords).into_response(),
     }
 }

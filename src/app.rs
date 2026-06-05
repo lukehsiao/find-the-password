@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use jiff::{SpanRound, Unit};
 use leptos::{either::Either, prelude::*};
 use leptos_meta::{MetaTags, Stylesheet, Title, provide_meta_context};
@@ -10,67 +8,42 @@ use leptos_router::{
     path,
 };
 
-use crate::user::{Completion, User, Users};
+use crate::{
+    error::AppError,
+    user::{Completion, User},
+};
 
 /// Add a new user to the user map.
 #[allow(clippy::unused_async)]
-#[server(AddUser, "/api")]
-pub async fn add_user(username: String) -> Result<(), ServerFnError> {
-    use crate::store::valid_username;
-    use crate::user::{User, Users};
-    use std::sync::Arc;
+#[server]
+pub async fn add_user(username: String) -> Result<(), AppError> {
+    use crate::store::ChallengeStore;
     use tracing::info;
 
-    // Guard classes for username validation
-    if !valid_username(&username) {
-        return Err(ServerFnError::ServerError(
-            "Error: username must be simple ASCII characters (a-zA-Z) or numbers (0-9) with no whitespace, and between 3 and 32 characters in length.".to_string(),
-        ));
-    }
-
-    let usermap = expect_context::<Arc<Users>>();
-    if usermap.contains_key(&username) {
-        Err(ServerFnError::ServerError(
-            "username is already taken".to_string(),
-        ))
-    } else {
-        info!(?username, "added user");
-        leptos_axum::redirect(format!("/u/{}", &username).as_str());
-        usermap.insert(username.clone(), User::new(username, jiff::Timestamp::now()));
-        Ok(())
-    }
+    let store = expect_context::<ChallengeStore>();
+    store.add_user(&username, jiff::Timestamp::now())?;
+    info!(?username, "added user");
+    leptos_axum::redirect(format!("/u/{username}").as_str());
+    Ok(())
 }
 
 /// Get a user.
 #[allow(clippy::unused_async)]
-#[server(GetUser, "/api")]
-pub async fn get_user(username: String) -> Result<User, ServerFnError> {
-    if username.is_empty() {
-        return Err(ServerFnError::ServerError(
-            "username must not just be whitespace".to_string(),
-        ));
-    }
-    let usermap = expect_context::<Arc<Users>>();
-    if let Some(user) = usermap.get(&username) {
-        Ok((*user).clone())
-    } else {
-        Err(ServerFnError::ServerError(
-            "no user with that username".to_string(),
-        ))
-    }
+#[server]
+pub async fn get_user(username: String) -> Result<User, AppError> {
+    use crate::store::ChallengeStore;
+
+    let store = expect_context::<ChallengeStore>();
+    store.get_user(&username).ok_or(AppError::UserNotFound)
 }
 
 /// Read the current leaderboard.
 #[allow(clippy::unused_async)]
-#[server(GetLeaders, "/api")]
-pub async fn get_leaders() -> Result<Vec<Completion>, ServerFnError> {
-    use crate::user::Completion;
-    use std::sync::{Arc, Mutex};
-    let leaders = expect_context::<Arc<Mutex<Vec<Completion>>>>()
-        .lock()
-        .unwrap()
-        .clone();
-    Ok(leaders)
+#[server]
+pub async fn get_leaders() -> Result<Vec<Completion>, AppError> {
+    use crate::store::ChallengeStore;
+
+    Ok(expect_context::<ChallengeStore>().leaders())
 }
 
 #[must_use]
@@ -191,7 +164,13 @@ fn UserPage() -> impl IntoView {
 #[component]
 fn HomePage() -> impl IntoView {
     let add_user = ServerAction::<AddUser>::new();
-    let value = Signal::derive(move || add_user.value().get().unwrap_or(Ok(())));
+    let error_msg = move || {
+        add_user
+            .value()
+            .get()
+            .and_then(Result::err)
+            .map(|error| error.to_string())
+    };
 
     let leaders = Resource::new(|| (), |()| async move { get_leaders().await });
 
@@ -231,28 +210,20 @@ fn HomePage() -> impl IntoView {
         </ul>
         <h2 id="lets-go">"Let's Go!"</h2>
 
-        <ErrorBoundary fallback=move |error| {
-            view! {
-                <div class="error">
-                    <p>
-                        {move || {
-                            let err = error.get().into_iter().next().unwrap().1.to_string();
-                            err.strip_prefix("ServerError|Error: ").unwrap().to_string()
-                        }}
-                    </p>
-                </div>
-                <ActionForm action=add_user>
-                    <input type="text" placeholder="Your username" name="username" required />
-                    <input type="submit" value="Join challenge" />
-                </ActionForm>
-            }
-        }>
-            <div>{value}</div>
-            <ActionForm action=add_user>
-                <input type="text" placeholder="Your username" name="username" required />
-                <input type="submit" value="Join challenge" />
-            </ActionForm>
-        </ErrorBoundary>
+        {move || {
+            error_msg()
+                .map(|msg| {
+                    view! {
+                        <div class="error">
+                            <p>{msg}</p>
+                        </div>
+                    }
+                })
+        }}
+        <ActionForm action=add_user>
+            <input type="text" placeholder="Your username" name="username" required />
+            <input type="submit" value="Join challenge" />
+        </ActionForm>
 
         <h2>Leaderboard</h2>
         <table>
