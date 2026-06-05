@@ -3,6 +3,7 @@ use std::sync::{Arc, LazyLock, Mutex};
 use dashmap::{DashMap, Entry};
 use jiff::Timestamp;
 use regex::Regex;
+use tracing::info;
 
 use crate::{
     error::AppError,
@@ -50,6 +51,7 @@ impl ChallengeStore {
             Entry::Occupied(_) => Err(AppError::UsernameTaken),
             Entry::Vacant(slot) => {
                 slot.insert(User::new(username.to_owned(), now));
+                info!(username, "added user");
                 Ok(())
             }
         }
@@ -64,7 +66,10 @@ impl ChallengeStore {
     /// Generate the deterministic password file for a user, if present.
     #[must_use]
     pub fn passwords(&self, username: &str) -> Option<String> {
-        self.users.get(username).map(|user| user.passwords())
+        self.users.get(username).map(|user| {
+            info!(username, "generated password file");
+            user.passwords()
+        })
     }
 
     /// Record one password check. The first correct guess pushes exactly one
@@ -84,6 +89,11 @@ impl ChallengeStore {
             AttemptResult::Incorrect => CheckOutcome::Incorrect,
             AttemptResult::AlreadySolved => CheckOutcome::Correct,
             AttemptResult::JustSolved(completion) => {
+                info!(
+                    username,
+                    attempts = completion.attempts_to_solve,
+                    "solved"
+                );
                 self.leaderboard
                     .lock()
                     .expect("leaderboard mutex poisoned")

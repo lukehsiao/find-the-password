@@ -3,6 +3,8 @@ pub mod error;
 #[cfg(feature = "ssr")]
 pub mod http;
 #[cfg(feature = "ssr")]
+pub mod router;
+#[cfg(feature = "ssr")]
 pub mod state;
 #[cfg(feature = "ssr")]
 pub mod store;
