@@ -151,7 +151,13 @@ Status code distribution:
 
 So, as long as there isn't a huge group of kids trying at a given time, it is likely a single server running locally can handle the load.
 
-## TODO
+## Testing
 
-- Figure out how to appease pedantic clippy lints
-- Actually have tests, and run them in CI
+Domain logic and the store have [property-based tests](https://hegel.dev/) (`just test`), and `tests/http.rs` drives the real router to lock the HTTP contract that solver scripts rely on.
+
+```
+just test       # cargo nextest run
+just coverage   # cargo llvm-cov nextest
+```
+
+End-to-end tests live in `end2end/` and run against a live server via Playwright (`cargo leptos end-to-end`).
