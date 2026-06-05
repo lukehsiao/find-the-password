@@ -1,4 +1,4 @@
-use std::sync::{Arc, LazyLock};
+use std::sync::Arc;
 
 use jiff::{SpanRound, Unit};
 use leptos::{either::Either, prelude::*};
@@ -12,19 +12,11 @@ use leptos_router::{
 
 use crate::user::{Completion, User, Users};
 
-/// Enforce that a username matches this specific pattern.
-#[cfg(feature = "ssr")]
-fn valid_username(username: &str) -> bool {
-    use regex::Regex;
-
-    static RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^[a-zA-Z0-9]{3,32}$").unwrap());
-    RE.is_match(username)
-}
-
 /// Add a new user to the user map.
 #[allow(clippy::unused_async)]
 #[server(AddUser, "/api")]
 pub async fn add_user(username: String) -> Result<(), ServerFnError> {
+    use crate::store::valid_username;
     use crate::user::{User, Users};
     use std::sync::Arc;
     use tracing::info;
