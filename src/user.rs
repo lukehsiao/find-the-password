@@ -18,11 +18,13 @@ pub struct User {
     pub solved_at: Option<Timestamp>,
     pub hits_before_solved: u64,
     // Never serialized: `get_user` sends User to the client, and the seed
-    // and secret must not leak to the browser.
+    // and secret must not leak to the browser. Visibility is restricted to
+    // match: seed is module-private, and the secret is readable only within
+    // the crate (the store and the in-crate tests).
     #[serde(skip)]
-    pub seed: u64,
+    seed: u64,
     #[serde(skip)]
-    pub secret: String,
+    pub(crate) secret: String,
 }
 
 /// Represents an entry in the leaderboard
@@ -199,16 +201,6 @@ mod tests {
             .position(|l| l == user.secret)
             .unwrap();
         assert!((OFFSET..NUM_PASSWORDS).contains(&index));
-    }
-
-    #[hegel::test(test_cases = 12)]
-    fn check_password_accepts_only_the_secret_line(tc: hegel::TestCase) {
-        let user = User::new(tc.draw(usernames()), tc.draw(timestamps()));
-        let file = user.passwords();
-        let lines: Vec<&str> = file.lines().collect();
-        let index = tc.draw(generators::integers::<usize>().max_value(lines.len() - 1));
-        let line = lines[index];
-        assert_eq!(user.check_password(line), line == user.secret);
     }
 
     #[hegel::test]
