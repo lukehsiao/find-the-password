@@ -8,7 +8,7 @@ repository = "https://github.com/lukehsiao/find-the-password"
 homepage = "https://github.com/lukehsiao/find-the-password"
 license = "BlueOak-1.0.0"
 publish = false
-rust-version = "1.89"
+rust-version = "1.96"
 
 [lib]
 crate-type = ["cdylib", "rlib"]
