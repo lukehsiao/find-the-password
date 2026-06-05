@@ -3,6 +3,11 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 ---
+## [0.2.1](https://github.com/lukehsiao/find-the-password/compare/v0.2.0..v0.2.1) - 2026-06-05
+
+A dependency release: bringing all dependencies up to latest, including the container.
+
+---
 ## [0.2.0](https://github.com/lukehsiao/find-the-password/compare/v0.1.7..v0.2.0) - 2026-06-05
 
 This release has no change in functionality, but represents a large internal refactoring to improve testability and organization.
