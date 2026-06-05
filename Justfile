@@ -11,7 +11,7 @@ image tag="local":
 # Runs clippy on the sources
 [group('dev')]
 check:
-	cargo clippy --all-features --all-targets --locked -- -W clippy::pedantic -D warnings
+	cargo clippy --all-features --all-targets --locked -- -D warnings
 
 # Check links in markdown files
 [group('dev')]

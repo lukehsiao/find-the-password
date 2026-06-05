@@ -11,9 +11,7 @@ use serde::{Deserialize, Serialize};
 /// a message never breaks decoding and the client never parses error strings.
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error, Serialize, Deserialize)]
 pub enum AppError {
-    #[error(
-        "Username must be 3-32 ASCII letters or digits, with no spaces or symbols."
-    )]
+    #[error("Username must be 3-32 ASCII letters or digits, with no spaces or symbols.")]
     InvalidUsername,
     #[error("That username is already taken. Try another.")]
     UsernameTaken,

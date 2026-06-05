@@ -89,11 +89,7 @@ impl ChallengeStore {
             AttemptResult::Incorrect => CheckOutcome::Incorrect,
             AttemptResult::AlreadySolved => CheckOutcome::Correct,
             AttemptResult::JustSolved(completion) => {
-                info!(
-                    username,
-                    attempts = completion.attempts_to_solve,
-                    "solved"
-                );
+                info!(username, attempts = completion.attempts_to_solve, "solved");
                 self.leaderboard
                     .lock()
                     .expect("leaderboard mutex poisoned")
@@ -120,8 +116,7 @@ impl ChallengeStore {
 /// Enforce that a username is 3-32 ASCII letters or digits.
 #[must_use]
 pub fn valid_username(username: &str) -> bool {
-    static RE: LazyLock<Regex> = LazyLock::new(|| {
-        Regex::new(r"^[a-zA-Z0-9]{3,32}$").expect("username pattern is valid")
-    });
+    static RE: LazyLock<Regex> =
+        LazyLock::new(|| Regex::new(r"^[a-zA-Z0-9]{3,32}$").expect("username pattern is valid"));
     RE.is_match(username)
 }

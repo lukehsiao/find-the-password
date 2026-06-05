@@ -46,6 +46,14 @@ tracing = "0.1"
 name = "passwords"
 path = "examples/passwords/main.rs"
 
+# One source of truth for lints, so `cargo clippy`, bacon, rust-analyzer, and CI
+# all agree instead of each passing their own -W flags.
+[lints.clippy]
+pedantic = { level = "warn", priority = -1 }
+# Every component and view helper returns `impl IntoView`; requiring #[must_use]
+# on each is noise, not a bug filter.
+must_use_candidate = "allow"
+
 [features]
 default = ["ssr"]
 hydrate = ["leptos/hydrate"]

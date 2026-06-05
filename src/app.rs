@@ -13,7 +13,9 @@ use crate::{
 };
 
 /// Add a new user to the user map.
-#[allow(clippy::unused_async)]
+// allow, not expect: the #[server] macro relocates the lint so #[expect]
+// reports as unfulfilled. async is mandatory on a server function.
+#[allow(clippy::unused_async, reason = "async is required by #[server]")]
 #[server]
 pub async fn add_user(username: String) -> Result<(), AppError> {
     use crate::store::ChallengeStore;
@@ -25,7 +27,7 @@ pub async fn add_user(username: String) -> Result<(), AppError> {
 }
 
 /// Get a user.
-#[allow(clippy::unused_async)]
+#[allow(clippy::unused_async, reason = "async is required by #[server]")]
 #[server]
 pub async fn get_user(username: String) -> Result<User, AppError> {
     use crate::store::ChallengeStore;
@@ -35,7 +37,7 @@ pub async fn get_user(username: String) -> Result<User, AppError> {
 }
 
 /// Read the current leaderboard.
-#[allow(clippy::unused_async)]
+#[allow(clippy::unused_async, reason = "async is required by #[server]")]
 #[server]
 pub async fn get_leaders() -> Result<Vec<Completion>, AppError> {
     use crate::store::ChallengeStore;
@@ -64,8 +66,10 @@ pub fn shell(options: LeptosOptions) -> impl IntoView {
 }
 
 #[component]
-#[allow(clippy::module_name_repetitions)]
-#[must_use]
+#[expect(
+    clippy::module_name_repetitions,
+    reason = "App is the conventional root component name"
+)]
 pub fn App() -> impl IntoView {
     // Provides context that manages stylesheets, titles, meta tags, etc.
     provide_meta_context();
@@ -136,7 +140,6 @@ fn UserPage() -> impl IntoView {
 }
 
 /// Renders the home page of your application.
-#[allow(clippy::too_many_lines)]
 #[component]
 fn HomePage() -> impl IntoView {
     let add_user = ServerAction::<AddUser>::new();
@@ -177,6 +180,9 @@ fn HomePage() -> impl IntoView {
         </ol>
         <h2 id="rules">"Rules"</h2>
         <ul>
+            <li>
+                "No using AI to solve the problem. The purpose of this is education! Feel free to consult the web and AI to learn, but do not let an AI rob you of the learning experience."
+            </li>
             <li>
                 "No sharing a solution with each other, everyone has to do their own work, but you're free to collaborate."
             </li>
