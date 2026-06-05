@@ -44,7 +44,7 @@ pub async fn add_user(username: String) -> Result<(), ServerFnError> {
     } else {
         info!(?username, "added user");
         leptos_axum::redirect(format!("/u/{}", &username).as_str());
-        usermap.insert(username.clone(), User::new(username));
+        usermap.insert(username.clone(), User::new(username, jiff::Timestamp::now()));
         Ok(())
     }
 }
