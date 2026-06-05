@@ -43,12 +43,7 @@ async fn main() {
     use tracing::info;
     use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
-    use challenge::{
-        app::App,
-        http::{check_password, get_passwords, healthcheck},
-        state::AppState,
-        store::ChallengeStore,
-    };
+    use challenge::{app::App, router::api_router, state::AppState, store::ChallengeStore};
 
     // Enable tracing.
     tracing_subscriber::registry()
@@ -76,12 +71,7 @@ async fn main() {
 
     // build our application with a route
     let app = Router::new()
-        .route("/up", routing::get(healthcheck))
-        .route(
-            "/u/{username}/check/{password}",
-            routing::get(check_password),
-        )
-        .route("/u/{username}/passwords.txt", routing::get(get_passwords))
+        .merge(api_router())
         .route(
             "/api/{*fn_name}",
             routing::get(server_fn_handler).post(server_fn_handler),

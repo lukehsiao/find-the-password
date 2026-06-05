@@ -18,11 +18,9 @@ use crate::{
 #[server]
 pub async fn add_user(username: String) -> Result<(), AppError> {
     use crate::store::ChallengeStore;
-    use tracing::info;
 
     let store = expect_context::<ChallengeStore>();
     store.add_user(&username, jiff::Timestamp::now())?;
-    info!(?username, "added user");
     leptos_axum::redirect(format!("/u/{username}").as_str());
     Ok(())
 }
