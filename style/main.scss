@@ -1,3 +1,62 @@
+/*
+ * Flexoki color override for water.css.
+ *
+ * water.css exposes its palette as custom properties. This file only
+ * redefines those properties; cargo-leptos compiles it into challenge.css,
+ * which the app loads after water.css, so these values win the cascade.
+ * Light values live in :root and dark values in the media block, mirroring
+ * water.css's own structure so light colors don't leak into dark mode.
+ *
+ * Flexoki by Steph Ango (https://stephango.com/flexoki, MIT).
+ */
+:root {
+  --background-body: #fffcf0; /* paper      (bg)   */
+  --background: #f2f0e5; /* base-50    (bg-2) */
+  --background-alt: #e6e4d9; /* base-100   (ui)   */
+  --selection: #c6dde8; /* blue-100          */
+  --text-main: #100f0f; /* black      (tx)   */
+  --text-bright: #100f0f; /* black      (tx)   */
+  --text-muted: #6f6e69; /* base-600   (tx-2) */
+  --links: #205ea6; /* blue-600          */
+  --focus: rgba(32, 94, 166, 0.4); /* blue-600 @ 40%    */
+  --border: #dad8ce; /* base-150   (ui-2) */
+  --code: #bc5215; /* orange-600        */
+  --button-base: #e6e4d9; /* base-100   (ui)   */
+  --button-hover: #dad8ce; /* base-150   (ui-2) */
+  --scrollbar-thumb: #cecdc3; /* base-200   (ui-3) */
+  --scrollbar-thumb-hover: #b7b5ac; /* base-300   (tx-3) */
+  --form-placeholder: #b7b5ac; /* base-300   (tx-3) */
+  --form-text: #100f0f; /* black      (tx)   */
+  --variable: #66800b; /* green-600         */
+  --highlight: #f6e2a0; /* yellow-100        */
+  --error-text: #af3029; /* red-600           */
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background-body: #100f0f; /* black    (bg)   */
+    --background: #1c1b1a; /* base-950 (bg-2) */
+    --background-alt: #282726; /* base-900 (ui)   */
+    --selection: #12253b; /* blue-900        */
+    --text-main: #cecdc3; /* base-200 (tx)   */
+    --text-bright: #e6e4d9; /* base-100        */
+    --text-muted: #878580; /* base-500 (tx-2) */
+    --links: #4385be; /* blue-400        */
+    --focus: rgba(67, 133, 190, 0.4); /* blue-400 @ 40%  */
+    --border: #343331; /* base-850 (ui-2) */
+    --code: #da702c; /* orange-400      */
+    --button-base: #282726; /* base-900 (ui)   */
+    --button-hover: #343331; /* base-850 (ui-2) */
+    --scrollbar-thumb: #403e3c; /* base-800 (ui-3) */
+    --scrollbar-thumb-hover: #575653; /* base-700 (tx-3) */
+    --form-placeholder: #575653; /* base-700 (tx-3) */
+    --form-text: #cecdc3; /* base-200 (tx)   */
+    --variable: #879a39; /* green-400       */
+    --highlight: #d0a215; /* yellow-400      */
+    --error-text: #d14d41; /* red-400         */
+  }
+}
+
 body {
   font-family: Atkinson Hyperlegible, -apple-system, BlinkMacSystemFont, avenir next, avenir, segoe ui, helvetica neue, helvetica, Cantarell, Ubuntu, roboto, noto, arial, sans-serif;
 
@@ -7,7 +66,7 @@ body {
 }
 
 .error p {
-  color: red;
+  color: var(--error-text);
 }
 
 a.button {
