@@ -8,7 +8,6 @@ use jiff::Timestamp;
 use crate::store::{ChallengeStore, CheckOutcome};
 
 /// Simple healthcheck endpoint.
-#[allow(clippy::unused_async)]
 pub async fn healthcheck() -> impl IntoResponse {
     StatusCode::OK
 }
@@ -17,7 +16,6 @@ pub async fn healthcheck() -> impl IntoResponse {
 ///
 /// The literal `true`/`false` bodies and the 200/404 statuses are the
 /// contract that players' scripts depend on.
-#[allow(clippy::unused_async)]
 pub async fn check_password(
     Path((username, password)): Path<(String, String)>,
     State(store): State<ChallengeStore>,
@@ -30,7 +28,6 @@ pub async fn check_password(
 }
 
 /// Produce passwords.txt for a user.
-#[allow(clippy::unused_async)]
 pub async fn get_passwords(
     Path(username): Path<String>,
     State(store): State<ChallengeStore>,

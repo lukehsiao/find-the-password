@@ -21,9 +21,7 @@ async fn main() -> Result<()> {
 
     let client = ClientBuilder::new().build()?;
 
-    let num_cpus = thread::available_parallelism()
-        .map(std::num::NonZero::get)
-        .unwrap_or(1);
+    let num_cpus = thread::available_parallelism().map_or(1, std::num::NonZero::get);
     info!("Num CPUs: {num_cpus}");
 
     let bodies = stream::iter(urls)

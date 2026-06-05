@@ -7,7 +7,7 @@ use crate::{
 
 /// The kid-facing HTTP contract plus the healthcheck.
 ///
-/// Generic over the state type so main() can merge it into the leptos app
+/// Generic over the state type so `main()` can merge it into the leptos app
 /// router while integration tests mount it directly on a bare
 /// [`ChallengeStore`], exercising the exact production routes without any
 /// leptos configuration.
