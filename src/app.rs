@@ -3,7 +3,8 @@ use leptos::{either::Either, prelude::*};
 use leptos_meta::{MetaTags, Stylesheet, Title, provide_meta_context};
 use leptos_router::{
     components::{Redirect, Route, Router, Routes},
-    hooks::use_params_map,
+    hooks::use_params,
+    params::Params,
     path,
 };
 
@@ -93,12 +94,18 @@ pub fn App() -> impl IntoView {
         </Router>
     }
 }
+/// Route parameters for [`UserPage`].
+#[derive(Params, PartialEq, Clone)]
+struct UserParams {
+    username: Option<String>,
+}
+
 /// A user's specific page
 #[component]
 fn UserPage() -> impl IntoView {
-    let params = use_params_map();
+    let params = use_params::<UserParams>();
     let user = Resource::new(
-        move || params.get().get("username"),
+        move || params.get().ok().and_then(|params| params.username),
         |username| async {
             match username {
                 None => None,

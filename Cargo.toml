@@ -18,10 +18,10 @@ axum = { version = "0.8", optional = true, features = ["macros"] }
 console_error_panic_hook = "0.1"
 dashmap = "6.2.1"
 jiff = { version = "0.2.28", features = ["serde"] }
-leptos = { version = "0.8" }
-leptos_axum = { version = "0.8", optional = true }
-leptos_meta = { version = "0.8" }
-leptos_router = { version = "0.8" }
+leptos = { version = "0.8.19" }
+leptos_axum = { version = "0.8.9", optional = true }
+leptos_meta = { version = "0.8.6" }
+leptos_router = { version = "0.8.13" }
 rand = { version = "0.10.1", default-features = false, features = ["std_rng"] }
 regex = { version = "1.12.3", optional = true }
 serde = { version = "1.0.228", features = ["derive"] }
