@@ -48,20 +48,12 @@ export default defineConfig({
       name: "chromium",
       use: {
         ...devices["Desktop Chrome"],
-      },
-    },
-
-    {
-      name: "firefox",
-      use: {
-        ...devices["Desktop Firefox"],
-      },
-    },
-
-    {
-      name: "webkit",
-      use: {
-        ...devices["Desktop Safari"],
+        // On systems Playwright doesn't bundle a browser for (e.g. Arch), point
+        // at a system Chromium instead of the fragile unsupported-OS download.
+        // Unset (CI, supported OSes) falls back to Playwright's own browser.
+        launchOptions: {
+          executablePath: process.env.PLAYWRIGHT_CHROMIUM_PATH || undefined,
+        },
       },
     },
 

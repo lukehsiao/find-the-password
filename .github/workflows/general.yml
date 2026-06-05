@@ -80,6 +80,6 @@ jobs:
         working-directory: end2end
         run: |
           npm ci
-          npx playwright install --with-deps
+          npx playwright install --with-deps chromium
       - name: Run end-to-end tests
         run: just e2e
