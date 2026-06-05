@@ -48,8 +48,8 @@ pub async fn get_passwords(
     Path(username): Path<String>,
     State(state): State<Internal>,
 ) -> Response {
-    match state.usermap.get_mut(&username) {
+    match state.usermap.get(&username) {
         None => (StatusCode::NOT_FOUND).into_response(),
-        Some(user) => (StatusCode::OK, user.get_passwords()).into_response(),
+        Some(user) => (StatusCode::OK, user.passwords()).into_response(),
     }
 }
