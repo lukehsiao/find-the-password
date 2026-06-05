@@ -1,0 +1,26 @@
+# Reproducible toolchain and tasks for local development.
+#
+# mise pins the tools but does NOT manage browser binaries. Playwright doesn't
+# ship an official build for Arch, and its unsupported-OS fallback is fragile,
+# so the e2e tests drive the system Chromium (pacman -S chromium) instead. CI
+# runs on ubuntu where Playwright's own browser works, so it ignores all of
+# this and installs the bundled browser normally.
+[tools]
+node = "24"
+"cargo:cargo-leptos" = "latest"
+just = "latest"
+
+[env]
+# Skip the browser download and point Playwright at the system Chromium.
+PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD = "1"
+PLAYWRIGHT_CHROMIUM_PATH = "/usr/bin/chromium"
+
+[tasks.e2e-setup]
+description = "Install the end-to-end JS dependencies"
+dir = "end2end"
+run = "npm ci"
+
+[tasks.e2e]
+description = "Run the end-to-end tests (uses the system Chromium)"
+depends = ["e2e-setup"]
+run = "just e2e"

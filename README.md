@@ -161,3 +161,13 @@ just coverage   # cargo llvm-cov nextest
 ```
 
 End-to-end tests live in `end2end/` and run against a live server via Playwright (`cargo leptos end-to-end`).
+Playwright has no official Arch build, so locally the tests use the system Chromium instead of Playwright's fragile fallback download.
+With [`mise`](https://mise.jdx.dev/) and `chromium` installed, the whole thing is one command:
+
+```
+sudo pacman -S chromium   # once
+mise run e2e              # npm ci, then cargo leptos end-to-end
+```
+
+`mise.toml` sets `PLAYWRIGHT_CHROMIUM_PATH=/usr/bin/chromium` and skips the browser download.
+CI runs on Ubuntu, where Playwright's own browser works, so it ignores this and installs the bundled Chromium normally.
