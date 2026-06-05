@@ -2,9 +2,8 @@ use jiff::{SpanRound, Unit};
 use leptos::{either::Either, prelude::*};
 use leptos_meta::{MetaTags, Stylesheet, Title, provide_meta_context};
 use leptos_router::{
-    NavigateOptions,
     components::{Redirect, Route, Router, Routes},
-    hooks::{use_navigate, use_params_map},
+    hooks::use_params_map,
     path,
 };
 
@@ -83,32 +82,13 @@ pub fn App() -> impl IntoView {
             <main>
                 <Routes fallback=|| "Page not found.".into_view()>
                     <Route path=path!("") view=HomePage />
+                    // Also matches with a trailing slash; the router tolerates it.
                     <Route path=path!("/u/:username") view=UserPage />
-                    <Route path=path!("/u/:username/") view=RedirUserPage />
                 </Routes>
             </main>
         </Router>
     }
 }
-/// Redirect to a user's specific page
-#[component(transparent)]
-fn RedirUserPage() -> impl IntoView {
-    let params = use_params_map();
-    let username = params.get().get("username");
-    let navigate = use_navigate();
-
-    match username {
-        Some(u) => navigate(
-            &format!("/u/{u}"),
-            NavigateOptions {
-                replace: true,
-                ..Default::default()
-            },
-        ),
-        None => navigate("/", NavigateOptions::default()),
-    }
-}
-
 /// A user's specific page
 #[component]
 fn UserPage() -> impl IntoView {
@@ -124,23 +104,21 @@ fn UserPage() -> impl IntoView {
     );
 
     view! {
-        <Transition fallback=move || {
-            view! { <p>"Error?"</p> }
+        <Suspense fallback=move || {
+            view! { <p>"Loading..."</p> }
         }>
             {move || {
                 user.get()
                     .map(|user| {
                         if let Some(Ok(user)) = user {
-                            let username = user.username.clone();
                             Either::Left(
                                 view! {
-                                    <h1 id="username">"Hi, "{username.clone()}"!"</h1>
+                                    <h1 id="username">"Hi, "{user.username.clone()}"!"</h1>
                                     <p>
                                         "Glad to have you join us for this challenge! Download your password file by clicking the link below."
                                     </p>
                                     <a
                                         class="button"
-
                                         href=format!("/u/{}/passwords.txt", &user.username)
                                         download="passwords.txt"
                                     >
@@ -153,7 +131,7 @@ fn UserPage() -> impl IntoView {
                         }
                     })
             }}
-        </Transition>
+        </Suspense>
     }
 }
 
@@ -170,7 +148,9 @@ fn HomePage() -> impl IntoView {
             .map(|error| error.to_string())
     };
 
-    let leaders = Resource::new(|| (), |()| async move { get_leaders().await });
+    // Blocking so the leaderboard is part of the server-rendered HTML
+    // instead of popping in after hydration.
+    let leaders = OnceResource::new_blocking(get_leaders());
 
     view! {
         <h1 id="finding-the-password">"Finding the password"</h1>
@@ -233,7 +213,7 @@ fn HomePage() -> impl IntoView {
                 </tr>
             </thead>
             <tbody>
-                <Transition fallback=move || {}>
+                <Suspense fallback=move || {}>
                     {move || {
                         leaders
                             .get()
@@ -265,7 +245,7 @@ fn HomePage() -> impl IntoView {
                                 })
                             })
                     }}
-                </Transition>
+                </Suspense>
             </tbody>
         </table>
     }
