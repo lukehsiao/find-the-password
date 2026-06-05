@@ -1,6 +1,5 @@
 use std::hash::{DefaultHasher, Hash, Hasher};
 
-use dashmap::DashMap;
 use jiff::{Span, Timestamp};
 use rand::{RngExt, SeedableRng, distr::Alphanumeric, rngs::StdRng};
 use serde::{Deserialize, Serialize};
@@ -10,9 +9,6 @@ const PASS_LEN: usize = 32;
 // Keep the secret out of the first 15k lines so a naive top-down scan
 // can't win in the first few seconds.
 const OFFSET: usize = 15_000;
-
-/// Collection of all users
-pub type Users = DashMap<String, User>;
 
 /// Defines all of the state we keep for a particular user.
 #[derive(Serialize, Deserialize, Clone, Debug)]

@@ -6,35 +6,28 @@ use axum::{
 };
 use leptos::prelude::provide_context;
 
-use challenge::{app::shell, state::Internal};
-
-/// Simple healthcheck endpoint
-async fn healthcheck() -> impl IntoResponse {
-    axum::http::StatusCode::OK
-}
+use challenge::{app::shell, state::AppState};
 
 async fn server_fn_handler(
-    State(app_state): State<Internal>,
+    State(app_state): State<AppState>,
     request: Request<AxumBody>,
 ) -> impl IntoResponse {
     use leptos_axum::handle_server_fns_with_context;
     handle_server_fns_with_context(
         move || {
-            provide_context(app_state.usermap.clone());
-            provide_context(app_state.leaderboard.clone());
+            provide_context(app_state.store.clone());
         },
         request,
     )
     .await
 }
 
-async fn leptos_routes_handler(state: State<Internal>, req: Request<AxumBody>) -> Response {
+async fn leptos_routes_handler(state: State<AppState>, req: Request<AxumBody>) -> Response {
     let State(app_state) = state.clone();
     let handler = leptos_axum::render_route_with_context(
         app_state.routes.clone(),
         move || {
-            provide_context(app_state.usermap.clone());
-            provide_context(app_state.leaderboard.clone());
+            provide_context(app_state.store.clone());
         },
         move || shell(app_state.leptos_options.clone()),
     );
@@ -43,8 +36,6 @@ async fn leptos_routes_handler(state: State<Internal>, req: Request<AxumBody>) -
 
 #[tokio::main]
 async fn main() {
-    use std::sync::{Arc, Mutex};
-
     use axum::{Router, routing};
     use leptos::prelude::*;
     use leptos_axum::{LeptosRoutes, generate_route_list};
@@ -54,9 +45,9 @@ async fn main() {
 
     use challenge::{
         app::App,
-        http::{check_password, get_passwords},
-        state::Internal,
-        user::Users,
+        http::{check_password, get_passwords, healthcheck},
+        state::AppState,
+        store::ChallengeStore,
     };
 
     // Enable tracing.
@@ -77,10 +68,9 @@ async fn main() {
     let leptos_options = conf.leptos_options;
     let addr = leptos_options.site_addr;
     let routes = generate_route_list(App);
-    let app_state = Internal {
+    let app_state = AppState {
         leptos_options,
-        usermap: Arc::new(Users::new()),
-        leaderboard: Arc::new(Mutex::new(vec![])),
+        store: ChallengeStore::new(),
         routes: routes.clone(),
     };
 
@@ -97,7 +87,7 @@ async fn main() {
             routing::get(server_fn_handler).post(server_fn_handler),
         )
         .leptos_routes_with_handler(routes, routing::get(leptos_routes_handler))
-        .fallback(leptos_axum::file_and_error_handler::<Internal, _>(shell))
+        .fallback(leptos_axum::file_and_error_handler::<AppState, _>(shell))
         .layer(CompressionLayer::new())
         .with_state(app_state);
 

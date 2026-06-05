@@ -1,14 +1,13 @@
 use axum::extract::FromRef;
 use leptos::prelude::LeptosOptions;
 use leptos_axum::AxumRouteListing;
-use std::sync::{Arc, Mutex};
 
-use crate::user::{Completion, Users};
+use crate::store::ChallengeStore;
 
+/// Shared axum state for the whole application.
 #[derive(FromRef, Debug, Clone)]
-pub struct Internal {
+pub struct AppState {
     pub leptos_options: LeptosOptions,
-    pub usermap: Arc<Users>,
-    pub leaderboard: Arc<Mutex<Vec<Completion>>>,
+    pub store: ChallengeStore,
     pub routes: Vec<AxumRouteListing>,
 }
