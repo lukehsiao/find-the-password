@@ -1,4 +1,5 @@
 /app/
+.hegel/
 bacon.toml
 Caddyfile
 cliff.toml

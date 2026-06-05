@@ -1,4 +1,4 @@
-FROM rust:1.96-bookworm AS builder
+FROM rust:1.96-trixie AS builder
 
 # Install cargo-binstall, which makes it easier to install other
 # cargo extensions like cargo-leptos
@@ -24,7 +24,7 @@ COPY . .
 # Build the app
 RUN cargo leptos build --release -vv
 
-FROM gcr.io/distroless/cc-debian12:nonroot AS runtime
+FROM gcr.io/distroless/cc-debian13:nonroot AS runtime
 WORKDIR /app
 
 # Copy the server binary to the /app directory
