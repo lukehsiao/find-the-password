@@ -60,3 +60,26 @@ jobs:
       - uses: taiki-e/install-action@nextest
       - name: Generate code coverage
         run: just coverage
+
+  e2e:
+    name: End-to-end
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: taiki-e/install-action@just
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-leptos
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install Playwright browsers
+        working-directory: end2end
+        run: |
+          npm ci
+          npx playwright install --with-deps
+      - name: Run end-to-end tests
+        run: just e2e
