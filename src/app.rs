@@ -68,26 +68,6 @@ pub async fn get_user(username: String) -> Result<User, ServerFnError> {
     }
 }
 
-/// Get a user's password file
-#[allow(clippy::unused_async)]
-#[server(GetUserPasswords, "/api")]
-pub async fn get_user_passwords(username: String) -> Result<String, ServerFnError> {
-    if username.is_empty() {
-        return Err(ServerFnError::ServerError(
-            "username must not just be whitespace".to_string(),
-        ));
-    }
-    let usermap = expect_context::<Arc<Users>>();
-    if let Some(user) = usermap.get(&username) {
-        Ok(user.get_passwords())
-    } else {
-        // No user, just go home
-        Err(ServerFnError::ServerError(
-            "no user with that username".to_string(),
-        ))
-    }
-}
-
 /// Read the current leaderboard.
 #[allow(clippy::unused_async)]
 #[server(GetLeaders, "/api")]
