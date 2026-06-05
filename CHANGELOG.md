@@ -3,6 +3,11 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 ---
+## [0.2.0](https://github.com/lukehsiao/find-the-password/compare/v0.1.7..v0.2.0) - 2026-06-05
+
+This release has no change in functionality, but represents a large internal refactoring to improve testability and organization.
+
+---
 ## [0.1.7](https://github.com/lukehsiao/find-the-password/compare/v0.1.6..v0.1.7) - 2025-09-28
 
 ### Bug Fixes
