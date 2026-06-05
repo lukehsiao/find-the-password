@@ -37,10 +37,11 @@ COPY --from=builder /app/target/site /app/site
 COPY --from=builder /app/Cargo.toml /app/
 
 # Set any required env variables and
+# 8080, not 80: the distroless nonroot user cannot bind a privileged port.
 ENV RUST_LOG="info"
-ENV LEPTOS_SITE_ADDR="0.0.0.0:80"
+ENV LEPTOS_SITE_ADDR="0.0.0.0:8080"
 ENV LEPTOS_SITE_ROOT="site"
-EXPOSE 80
+EXPOSE 8080
 
 # Run the server
 CMD ["/app/challenge"]
