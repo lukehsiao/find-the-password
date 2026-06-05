@@ -23,6 +23,16 @@ link-check:
 test:
 	cargo nextest run
 
+# Generate a coverage report via llvm-cov + nextest
+[group('dev')]
+coverage:
+	cargo llvm-cov nextest
+
+# Run the end-to-end (Playwright) tests; builds the app and starts the server
+[group('dev')]
+e2e:
+	cargo leptos end-to-end
+
 # Run the release binary
 [group('dev')]
 run addr="0.0.0.0:3000":

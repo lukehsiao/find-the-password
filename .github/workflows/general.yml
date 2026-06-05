@@ -12,15 +12,16 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  # test:
-  #   name: Test
-  #   runs-on: ubuntu-latest
-  #   steps:
-  #     - uses: actions/checkout@v5
-  #     - uses: dtolnay/rust-toolchain@stable
-  #     - uses: taiki-e/install-action@nextest
-  #     - name: Run tests
-  #       run: cargo nextest run
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: taiki-e/install-action@just
+      - uses: taiki-e/install-action@nextest
+      - name: Run tests
+        run: just test
 
   fmt:
     name: Rustfmt
@@ -41,16 +42,21 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy
+      - uses: taiki-e/install-action@just
       - name: Linting
-        run: cargo clippy --all-targets --all-features -- -D warnings
+        run: just check
 
-  # coverage:
-  #   name: Code coverage
-  #   runs-on: ubuntu-latest
-  #   steps:
-  #     - name: Checkout repository
-  #       uses: actions/checkout@v5
-  #     - uses: dtolnay/rust-toolchain@stable
-  #     - uses: taiki-e/install-action@cargo-tarpaulin
-  #     - name: Generate code coverage
-  #       run: cargo tarpaulin --verbose --workspace
+  coverage:
+    name: Code coverage
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: llvm-tools-preview
+      - uses: taiki-e/install-action@just
+      - uses: taiki-e/install-action@cargo-llvm-cov
+      - uses: taiki-e/install-action@nextest
+      - name: Generate code coverage
+        run: just coverage
