@@ -4,6 +4,8 @@ pub mod error;
 pub mod http;
 #[cfg(feature = "ssr")]
 pub mod state;
+#[cfg(feature = "ssr")]
+pub mod store;
 pub mod user;
 
 #[cfg(feature = "hydrate")]
