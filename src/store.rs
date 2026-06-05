@@ -235,4 +235,62 @@ mod tests {
         assert_eq!(leaders[0].username, name);
         assert_eq!(leaders[0].attempts_to_solve, warmup + 1);
     }
+
+    // The single-threaded property tests above can't catch races. These drive
+    // the store concurrently to exercise the entry-API guard in add_user and
+    // the lock ordering in check that the production path relies on.
+
+    #[test]
+    fn racing_add_user_on_one_name_succeeds_exactly_once() {
+        let store = ChallengeStore::new();
+        let now = Timestamp::UNIX_EPOCH;
+        let racers = 64;
+
+        let wins = std::thread::scope(|scope| {
+            let handles: Vec<_> = (0..racers)
+                .map(|_| scope.spawn(|| store.add_user("racer", now).is_ok()))
+                .collect();
+            handles
+                .into_iter()
+                .map(|h| h.join().unwrap())
+                .filter(|&won| won)
+                .count()
+        });
+
+        assert_eq!(wins, 1, "exactly one concurrent registration should win");
+        assert!(store.get_user("racer").is_some());
+    }
+
+    #[test]
+    fn concurrent_solves_record_one_completion_per_user() {
+        let store = ChallengeStore::new();
+        let now = Timestamp::UNIX_EPOCH;
+        let users = 64;
+
+        let names: Vec<String> = (0..users).map(|i| format!("solver{i}")).collect();
+        for name in &names {
+            store.add_user(name, now).unwrap();
+        }
+        let secrets: Vec<String> = names
+            .iter()
+            .map(|name| store.get_user(name).unwrap().secret)
+            .collect();
+
+        let store = &store;
+        std::thread::scope(|scope| {
+            for (name, secret) in names.iter().zip(&secrets) {
+                scope.spawn(move || {
+                    // A miss before the hit, so check holds both locks in turn.
+                    store.check(name, "wrong", now);
+                    assert_eq!(store.check(name, secret, now), CheckOutcome::Correct);
+                });
+            }
+        });
+
+        let mut solved: Vec<String> = store.leaders().into_iter().map(|c| c.username).collect();
+        solved.sort();
+        let mut expected = names.clone();
+        expected.sort();
+        assert_eq!(solved, expected, "every solver recorded exactly once");
+    }
 }
