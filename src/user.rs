@@ -131,3 +131,163 @@ impl User {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use hegel::extras::jiff as jiff_gs;
+    use hegel::generators::{self, Generator};
+    use jiff::SignedDuration;
+
+    use super::{AttemptResult, NUM_PASSWORDS, OFFSET, PASS_LEN, Timestamp, User};
+
+    fn usernames() -> impl Generator<String> {
+        generators::from_regex(r"[a-zA-Z0-9]{3,32}").fullmatch(true)
+    }
+
+    // Bound to 2000..2090 so the millisecond seed math and the solve-time
+    // offsets below can never overflow; the logic doesn't care about the era.
+    fn timestamps() -> impl Generator<Timestamp> {
+        let min = Timestamp::from_second(946_684_800).unwrap();
+        let max = Timestamp::from_second(3_786_825_600).unwrap();
+        jiff_gs::timestamps().min_value(min).max_value(max)
+    }
+
+    // A guaranteed-wrong guess: longer than any 32-char secret.
+    fn wrong_guess(secret: &str) -> String {
+        format!("{secret}-nope")
+    }
+
+    #[hegel::test(test_cases = 12)]
+    fn passwords_contains_the_secret_exactly_once(tc: hegel::TestCase) {
+        let user = User::new(tc.draw(usernames()), tc.draw(timestamps()));
+        let hits = user
+            .passwords()
+            .lines()
+            .filter(|l| *l == user.secret)
+            .count();
+        assert_eq!(hits, 1);
+    }
+
+    #[hegel::test(test_cases = 12)]
+    fn passwords_has_60000_lines_and_a_trailing_newline(tc: hegel::TestCase) {
+        let file = User::new(tc.draw(usernames()), tc.draw(timestamps())).passwords();
+        assert!(file.ends_with('\n'));
+        assert_eq!(file.lines().count(), NUM_PASSWORDS);
+    }
+
+    #[hegel::test(test_cases = 12)]
+    fn every_password_is_32_alphanumeric_chars(tc: hegel::TestCase) {
+        let file = User::new(tc.draw(usernames()), tc.draw(timestamps())).passwords();
+        for line in file.lines() {
+            assert_eq!(line.len(), PASS_LEN);
+            assert!(line.chars().all(|c| c.is_ascii_alphanumeric()));
+        }
+    }
+
+    #[hegel::test(test_cases = 12)]
+    fn passwords_are_deterministic(tc: hegel::TestCase) {
+        let user = User::new(tc.draw(usernames()), tc.draw(timestamps()));
+        assert_eq!(user.passwords(), user.passwords());
+    }
+
+    #[hegel::test(test_cases = 12)]
+    fn secret_is_never_in_the_first_15000_lines(tc: hegel::TestCase) {
+        let user = User::new(tc.draw(usernames()), tc.draw(timestamps()));
+        let index = user
+            .passwords()
+            .lines()
+            .position(|l| l == user.secret)
+            .unwrap();
+        assert!((OFFSET..NUM_PASSWORDS).contains(&index));
+    }
+
+    #[hegel::test(test_cases = 12)]
+    fn check_password_accepts_only_the_secret_line(tc: hegel::TestCase) {
+        let user = User::new(tc.draw(usernames()), tc.draw(timestamps()));
+        let file = user.passwords();
+        let lines: Vec<&str> = file.lines().collect();
+        let index = tc.draw(generators::integers::<usize>().max_value(lines.len() - 1));
+        let line = lines[index];
+        assert_eq!(user.check_password(line), line == user.secret);
+    }
+
+    #[hegel::test]
+    fn user_is_deterministic_given_name_and_time(tc: hegel::TestCase) {
+        let name = tc.draw(usernames());
+        let now = tc.draw(timestamps());
+        let a = User::new(name.clone(), now);
+        let b = User::new(name, now);
+        assert_eq!(a.seed, b.seed);
+        assert_eq!(a.secret, b.secret);
+        assert_eq!(a.created_at, b.created_at);
+    }
+
+    #[hegel::test]
+    fn secret_is_32_alphanumeric_chars(tc: hegel::TestCase) {
+        let user = User::new(tc.draw(usernames()), tc.draw(timestamps()));
+        assert_eq!(user.secret.len(), PASS_LEN);
+        assert!(user.secret.chars().all(|c| c.is_ascii_alphanumeric()));
+    }
+
+    #[hegel::test]
+    fn wrong_guesses_count_but_never_solve(tc: hegel::TestCase) {
+        let mut user = User::new(tc.draw(usernames()), tc.draw(timestamps()));
+        let now = tc.draw(timestamps());
+        let attempts = tc.draw(generators::integers::<u64>().max_value(20));
+        let wrong = wrong_guess(&user.secret);
+        for _ in 0..attempts {
+            assert!(matches!(
+                user.record_attempt(&wrong, now),
+                AttemptResult::Incorrect
+            ));
+        }
+        assert_eq!(user.hits_before_solved, attempts);
+        assert!(user.solved_at.is_none());
+    }
+
+    #[hegel::test]
+    fn correct_guess_solves_once_and_records_the_completion(tc: hegel::TestCase) {
+        let created = tc.draw(timestamps());
+        let mut user = User::new(tc.draw(usernames()), created);
+        let secret = user.secret.clone();
+        let wrong = wrong_guess(&secret);
+
+        let warmup = tc.draw(generators::integers::<u64>().max_value(10));
+        for _ in 0..warmup {
+            user.record_attempt(&wrong, created);
+        }
+
+        let elapsed = tc.draw(
+            generators::integers::<i64>()
+                .min_value(0)
+                .max_value(31_536_000),
+        );
+        let solved_at = created
+            .checked_add(SignedDuration::from_secs(elapsed))
+            .unwrap();
+
+        match user.record_attempt(&secret, solved_at) {
+            AttemptResult::JustSolved(completion) => {
+                assert_eq!(completion.attempts_to_solve, warmup + 1);
+                // Span has no PartialEq; compare as fixed-unit durations.
+                assert_eq!(
+                    completion.time_to_solve.fieldwise(),
+                    (solved_at - created).fieldwise()
+                );
+            }
+            other => panic!("expected JustSolved, got {other:?}"),
+        }
+
+        // Checks after solving report correctness but never change the record.
+        let frozen = user.hits_before_solved;
+        assert!(matches!(
+            user.record_attempt(&secret, solved_at),
+            AttemptResult::AlreadySolved
+        ));
+        assert!(matches!(
+            user.record_attempt(&wrong, solved_at),
+            AttemptResult::Incorrect
+        ));
+        assert_eq!(user.hits_before_solved, frozen);
+    }
+}

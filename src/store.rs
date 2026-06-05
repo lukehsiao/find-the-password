@@ -120,3 +120,119 @@ pub fn valid_username(username: &str) -> bool {
         LazyLock::new(|| Regex::new(r"^[a-zA-Z0-9]{3,32}$").expect("username pattern is valid"));
     RE.is_match(username)
 }
+
+#[cfg(test)]
+mod tests {
+    use hegel::extras::jiff as jiff_gs;
+    use hegel::generators::{self, Generator};
+
+    use jiff::Timestamp;
+
+    use super::{AppError, ChallengeStore, CheckOutcome, valid_username};
+
+    fn usernames() -> impl Generator<String> {
+        generators::from_regex(r"[a-zA-Z0-9]{3,32}").fullmatch(true)
+    }
+
+    fn timestamps() -> impl Generator<Timestamp> {
+        let min = Timestamp::from_second(946_684_800).unwrap();
+        let max = Timestamp::from_second(3_786_825_600).unwrap();
+        jiff_gs::timestamps().min_value(min).max_value(max)
+    }
+
+    #[hegel::test]
+    fn valid_username_accepts_well_formed_names(tc: hegel::TestCase) {
+        assert!(valid_username(&tc.draw(usernames())));
+    }
+
+    #[hegel::test]
+    fn valid_username_rejects_too_short(tc: hegel::TestCase) {
+        let name = tc.draw(generators::from_regex(r"[a-zA-Z0-9]{0,2}").fullmatch(true));
+        assert!(!valid_username(&name));
+    }
+
+    #[hegel::test]
+    fn valid_username_rejects_too_long(tc: hegel::TestCase) {
+        let name = tc.draw(generators::from_regex(r"[a-zA-Z0-9]{33,64}").fullmatch(true));
+        assert!(!valid_username(&name));
+    }
+
+    #[hegel::test]
+    fn valid_username_rejects_non_alphanumeric(tc: hegel::TestCase) {
+        // A run of valid chars with one disallowed character spliced in.
+        let name = tc.draw(
+            generators::from_regex(r"[a-zA-Z0-9]{1,15}[^a-zA-Z0-9][a-zA-Z0-9]{1,15}")
+                .fullmatch(true),
+        );
+        assert!(!valid_username(&name));
+    }
+
+    #[hegel::test]
+    fn add_user_rejects_duplicates(tc: hegel::TestCase) {
+        let store = ChallengeStore::new();
+        let name = tc.draw(usernames());
+        let now = tc.draw(timestamps());
+        assert_eq!(store.add_user(&name, now), Ok(()));
+        assert_eq!(store.add_user(&name, now), Err(AppError::UsernameTaken));
+    }
+
+    #[hegel::test]
+    fn add_user_rejects_invalid_names(tc: hegel::TestCase) {
+        let store = ChallengeStore::new();
+        let name = tc.draw(generators::from_regex(r"[a-zA-Z0-9]{0,2}").fullmatch(true));
+        assert_eq!(
+            store.add_user(&name, tc.draw(timestamps())),
+            Err(AppError::InvalidUsername)
+        );
+    }
+
+    #[hegel::test]
+    fn check_on_unknown_user_is_not_found(tc: hegel::TestCase) {
+        let store = ChallengeStore::new();
+        let name = tc.draw(usernames());
+        assert_eq!(
+            store.check(&name, "anything", tc.draw(timestamps())),
+            CheckOutcome::NotFound
+        );
+    }
+
+    #[hegel::test]
+    fn wrong_guesses_are_incorrect_and_leave_the_board_empty(tc: hegel::TestCase) {
+        let store = ChallengeStore::new();
+        let name = tc.draw(usernames());
+        let now = tc.draw(timestamps());
+        store.add_user(&name, now).unwrap();
+
+        let wrong = format!("{}-nope", store.get_user(&name).unwrap().secret);
+        let attempts = tc.draw(generators::integers::<u64>().max_value(20));
+        for _ in 0..attempts {
+            assert_eq!(store.check(&name, &wrong, now), CheckOutcome::Incorrect);
+        }
+        assert!(store.leaders().is_empty());
+    }
+
+    #[hegel::test]
+    fn first_correct_guess_records_exactly_one_completion(tc: hegel::TestCase) {
+        let store = ChallengeStore::new();
+        let name = tc.draw(usernames());
+        let now = tc.draw(timestamps());
+        store.add_user(&name, now).unwrap();
+        let secret = store.get_user(&name).unwrap().secret;
+        let wrong = format!("{secret}-nope");
+
+        let warmup = tc.draw(generators::integers::<u64>().max_value(10));
+        for _ in 0..warmup {
+            store.check(&name, &wrong, now);
+        }
+
+        assert_eq!(store.check(&name, &secret, now), CheckOutcome::Correct);
+        // Extra checks after solving must not grow or change the leaderboard.
+        store.check(&name, &secret, now);
+        store.check(&name, &wrong, now);
+
+        let leaders = store.leaders();
+        assert_eq!(leaders.len(), 1);
+        assert_eq!(leaders[0].username, name);
+        assert_eq!(leaders[0].attempts_to_solve, warmup + 1);
+    }
+}
