@@ -48,4 +48,13 @@ mod tests {
             assert_eq!(error, AppError::de(error.ser()));
         }
     }
+
+    #[test]
+    fn framework_errors_funnel_into_the_server_fn_variant() {
+        let err = AppError::from_server_fn_error(ServerFnErrorErr::ServerError("boom".to_string()));
+        assert_eq!(
+            err,
+            AppError::ServerFn(ServerFnErrorErr::ServerError("boom".to_string()))
+        );
+    }
 }

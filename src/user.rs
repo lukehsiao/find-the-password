@@ -221,6 +221,16 @@ mod tests {
         assert!(user.secret.chars().all(|c| c.is_ascii_alphanumeric()));
     }
 
+    // Regression guard: the original byte-sum seed gave anagram usernames the
+    // same secret at the same instant. Hashing the username fixed it.
+    #[test]
+    fn anagram_usernames_get_different_secrets() {
+        let now = Timestamp::UNIX_EPOCH;
+        let abc = User::new("abc".to_string(), now);
+        let bca = User::new("bca".to_string(), now);
+        assert_ne!(abc.secret, bca.secret);
+    }
+
     #[hegel::test]
     fn wrong_guesses_count_but_never_solve(tc: hegel::TestCase) {
         let mut user = User::new(tc.draw(usernames()), tc.draw(timestamps()));
