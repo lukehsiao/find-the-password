@@ -1,4 +1,5 @@
 pub mod app;
+pub mod error;
 #[cfg(feature = "ssr")]
 pub mod http;
 #[cfg(feature = "ssr")]
