@@ -9,12 +9,10 @@
   The password file was generated while holding a dashmap shard guard, so each download stalled every check on that shard for several milliseconds (check p99.9 under concurrent downloads: 6.5ms -> 0.32ms). Generation also fills a single flat buffer now instead of allocating 60,000 intermediate Strings, with a property test pinning the output byte for byte. Beyond that, the check route skips the compression layer, the server binary picks up mimalloc and thin LTO, wrong guesses no longer read the clock, and the check handler borrows its path params instead of allocating them. All of this pushes our throughput up from like 77krps to 108krps.
 
 <pre>
-$ git-stats v0.2.1..v0.2.2
-Author           Commits  Changed Files  Insertions  Deletions  Net Δ
-Luke Hsiao           224            640     +125685    -117725  +7960
-dependabot[bot]      191            355       +1328      -1360    -32
-Travis Chambers        3              5         +18         -1    +17
-Total                418           1000     +127031    -119086  +7945
+Author               Commits  Changed Files  Insertions  Deletions  Net Δ
+Luke Hsiao                12             26       +1355       -250  +1105
+github-actions[bot]        1              5         +22        -12    +10
+Total                     13             31       +1377       -262  +1115
 </pre>
 
 ---
