@@ -8,6 +8,13 @@ use leptos::prelude::provide_context;
 
 use challenge::{app::shell, state::AppState};
 
+// Per-request allocations live mostly in hyper and axum internals; mimalloc
+// serves those faster than the system allocator. Server binary only, so the
+// WASM bundle is unaffected.
+#[cfg(feature = "ssr")]
+#[global_allocator]
+static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
+
 async fn server_fn_handler(
     State(app_state): State<AppState>,
     request: Request<AxumBody>,

@@ -22,6 +22,7 @@ leptos = { version = "0.8.19" }
 leptos_axum = { version = "0.8.9", optional = true }
 leptos_meta = { version = "0.8.6" }
 leptos_router = { version = "0.8.13" }
+mimalloc = { version = "0.1", optional = true }
 rand = { version = "0.10.1", default-features = false, features = ["std_rng"] }
 regex = { version = "1.12.3", optional = true }
 serde = { version = "1.0.228", features = ["derive"] }
@@ -60,6 +61,7 @@ default = ["ssr"]
 hydrate = ["leptos/hydrate"]
 ssr = [
     "dep:axum",
+    "dep:mimalloc",
     "dep:tokio",
     "dep:tower",
     "dep:tower-http",
