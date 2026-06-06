@@ -295,4 +295,73 @@ mod tests {
         expected.sort();
         assert_eq!(solved, expected, "every solver recorded exactly once");
     }
+
+    // Many threads hammering one user is the actual production workload (a
+    // kid's parallel solver). No wrong guess may ever be lost.
+    #[test]
+    fn same_user_contention_counts_every_wrong_guess() {
+        let store = ChallengeStore::new();
+        let now = Timestamp::UNIX_EPOCH;
+        store.add_user("hammer", now).unwrap();
+        let secret = store.get_user("hammer").unwrap().secret;
+        let threads: u64 = 8;
+        let guesses_per_thread: u64 = 200;
+
+        let store_ref = &store;
+        std::thread::scope(|scope| {
+            for _ in 0..threads {
+                scope.spawn(move || {
+                    for _ in 0..guesses_per_thread {
+                        assert_eq!(
+                            store_ref.check("hammer", "wrong", now),
+                            CheckOutcome::Incorrect
+                        );
+                    }
+                });
+            }
+        });
+
+        assert_eq!(store.check("hammer", &secret, now), CheckOutcome::Correct);
+        let leaders = store.leaders();
+        assert_eq!(leaders.len(), 1);
+        assert_eq!(
+            leaders[0].attempts_to_solve,
+            threads * guesses_per_thread + 1,
+            "every wrong guess must be counted exactly once"
+        );
+    }
+
+    // Racing correct guesses must produce exactly one Completion, and the
+    // stored count must freeze at the winning attempt.
+    #[test]
+    fn racing_correct_guesses_record_one_completion() {
+        let store = ChallengeStore::new();
+        let now = Timestamp::UNIX_EPOCH;
+        store.add_user("racer", now).unwrap();
+        let secret = store.get_user("racer").unwrap().secret;
+        let racers: u64 = 16;
+
+        let store_ref = &store;
+        let secret_ref = &secret;
+        std::thread::scope(|scope| {
+            for _ in 0..racers {
+                scope.spawn(move || {
+                    assert_eq!(
+                        store_ref.check("racer", secret_ref, now),
+                        CheckOutcome::Correct
+                    );
+                });
+            }
+        });
+
+        let leaders = store.leaders();
+        assert_eq!(leaders.len(), 1, "racing winners record one completion");
+        let attempts = leaders[0].attempts_to_solve;
+        assert!((1..=racers).contains(&attempts));
+        assert_eq!(
+            store.get_user("racer").unwrap().hits_before_solved,
+            attempts,
+            "the counter freezes at the winning attempt"
+        );
+    }
 }
