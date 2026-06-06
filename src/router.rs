@@ -5,6 +5,33 @@ use crate::{
     store::ChallengeStore,
 };
 
+/// The high-volume check route plus the healthcheck.
+///
+/// Split from [`passwords_router`] so `main()` can mount it after the
+/// compression layer: check bodies are 4-5 bytes, far below the
+/// compressor's 32-byte floor, so the layer could only add per-request
+/// overhead here.
+pub fn check_router<S>() -> Router<S>
+where
+    S: Clone + Send + Sync + 'static,
+    ChallengeStore: FromRef<S>,
+{
+    Router::new()
+        .route("/up", get(healthcheck))
+        .route("/u/{username}/check/{password}", get(check_password))
+}
+
+/// The passwords.txt download route. It stays behind the compression
+/// layer: random base62 only shrinks ~25% under gzip, but on a 2MB body
+/// that is still worth it for slow school wifi.
+pub fn passwords_router<S>() -> Router<S>
+where
+    S: Clone + Send + Sync + 'static,
+    ChallengeStore: FromRef<S>,
+{
+    Router::new().route("/u/{username}/passwords.txt", get(get_passwords))
+}
+
 /// The kid-facing HTTP contract plus the healthcheck.
 ///
 /// Generic over the state type so `main()` can merge it into the leptos app
@@ -16,10 +43,7 @@ where
     S: Clone + Send + Sync + 'static,
     ChallengeStore: FromRef<S>,
 {
-    Router::new()
-        .route("/up", get(healthcheck))
-        .route("/u/{username}/check/{password}", get(check_password))
-        .route("/u/{username}/passwords.txt", get(get_passwords))
+    check_router().merge(passwords_router())
 }
 
 // Integration tests for the kid-facing HTTP contract. They drive the real
