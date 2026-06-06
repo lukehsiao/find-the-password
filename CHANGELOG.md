@@ -1,18 +1,19 @@
 # Changelog
 
-All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
-
 ---
+
 ## [0.2.1](https://github.com/lukehsiao/find-the-password/compare/v0.2.0..v0.2.1) - 2026-06-05
 
 A dependency release: bringing all dependencies up to latest, including the container.
 
 ---
+
 ## [0.2.0](https://github.com/lukehsiao/find-the-password/compare/v0.1.7..v0.2.0) - 2026-06-05
 
 This release has no change in functionality, but represents a large internal refactoring to improve testability and organization.
 
 ---
+
 ## [0.1.7](https://github.com/lukehsiao/find-the-password/compare/v0.1.6..v0.1.7) - 2025-09-28
 
 ### Bug Fixes
@@ -25,6 +26,7 @@ This release has no change in functionality, but represents a large internal ref
 - **(LICENSE)** render in markdown - ([eff426c](https://github.com/lukehsiao/find-the-password/commit/eff426c045a572fc65b4133d5734bf7f20421344)) - Luke Hsiao
 
 ---
+
 ## [0.1.6](https://github.com/lukehsiao/find-the-password/compare/v0.1.5..v0.1.6) - 2025-03-31
 
 ### Features
@@ -40,6 +42,7 @@ This release has no change in functionality, but represents a large internal ref
 - **(README)** add instructions for docker - ([cb367b4](https://github.com/lukehsiao/find-the-password/commit/cb367b441535ac5646103188028370cc97b3e92c)) - Luke Hsiao
 
 ---
+
 ## [0.1.5](https://github.com/lukehsiao/find-the-password/compare/v0.1.4..v0.1.5) - 2025-03-16
 
 ### Bug Fixes
@@ -52,6 +55,7 @@ This release has no change in functionality, but represents a large internal ref
 - use tracing for all logs - ([f4cfe01](https://github.com/lukehsiao/find-the-password/commit/f4cfe010eeb61c0a9b67f9ff4fd8c072590e4377)) - Luke Hsiao
 
 ---
+
 ## [0.1.4](https://github.com/lukehsiao/find-the-password/compare/v0.1.3..v0.1.4) - 2024-12-15
 
 ### Bug Fixes
@@ -59,6 +63,7 @@ This release has no change in functionality, but represents a large internal ref
 - show a Not Found page if bad route - ([00a0a6b](https://github.com/lukehsiao/find-the-password/commit/00a0a6b5ffc0dfeae15ce2b32eddb72550202e19)) - Luke Hsiao
 
 ---
+
 ## [0.1.3](https://github.com/lukehsiao/find-the-password/compare/v0.1.2..v0.1.3) - 2024-12-15
 
 ### Performance
@@ -70,6 +75,7 @@ This release has no change in functionality, but represents a large internal ref
 - **(README)** add todo items - ([ef2cf2b](https://github.com/lukehsiao/find-the-password/commit/ef2cf2b36958ffc32e5b35e1b37ca4d18da15309)) - Luke Hsiao
 
 ---
+
 ## [0.1.2](https://github.com/lukehsiao/find-the-password/compare/v0.1.1..v0.1.2) - 2024-12-15
 
 This doesn't change any functionality, but significantly changes the underlying code to use the latest version of Leptos.
@@ -79,6 +85,7 @@ This doesn't change any functionality, but significantly changes the underlying 
 - upgrade to leptos 0.7 - ([8d991ad](https://github.com/lukehsiao/find-the-password/commit/8d991adbed7e8256d4d863cb3484d436d59ab2f2)) - Luke Hsiao
 
 ---
+
 ## [0.1.1](https://github.com/lukehsiao/find-the-password/compare/v0.1.0..v0.1.1) - 2024-11-21
 
 ### Documentation
@@ -94,6 +101,7 @@ This doesn't change any functionality, but significantly changes the underlying 
 - adapt to clippy pedantic lints - ([4be388c](https://github.com/lukehsiao/find-the-password/commit/4be388cfe36f8fd44db9b49254a566a599036215)) - Luke Hsiao
 
 ---
+
 ## [0.1.0] - 2024-08-19
 
 Initial release of Leptos-based challenge.
