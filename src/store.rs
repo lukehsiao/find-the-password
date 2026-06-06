@@ -66,10 +66,12 @@ impl ChallengeStore {
     /// Generate the deterministic password file for a user, if present.
     #[must_use]
     pub fn passwords(&self, username: &str) -> Option<String> {
-        self.users.get(username).map(|user| {
-            info!(username, "generated password file");
-            user.passwords()
-        })
+        // Clone the user out so the shard guard drops before the expensive
+        // generation; holding it would stall every check on this shard for
+        // the several milliseconds the file takes to build.
+        let user = self.get_user(username)?;
+        info!(username, "generated password file");
+        Some(user.passwords())
     }
 
     /// Record one password check. The first correct guess pushes exactly one
