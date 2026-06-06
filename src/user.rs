@@ -73,17 +73,19 @@ impl User {
 
     /// Get this user's full password file, newline-terminated.
     #[must_use]
+    #[expect(
+        clippy::missing_panics_doc,
+        reason = "the buffer is ASCII alphanumerics and newlines by construction"
+    )]
     pub fn passwords(&self) -> String {
+        // Line i is the 32 bytes at i * (PASS_LEN + 1), followed by its
+        // newline.
         let mut rng = StdRng::seed_from_u64(self.seed);
-        let mut passwords: Vec<String> = (0..NUM_PASSWORDS)
-            .map(|_| {
-                (&mut rng)
-                    .sample_iter(&Alphanumeric)
-                    .take(PASS_LEN)
-                    .map(char::from)
-                    .collect()
-            })
-            .collect();
+        let mut buf: Vec<u8> = Vec::with_capacity(NUM_PASSWORDS * (PASS_LEN + 1));
+        for _ in 0..NUM_PASSWORDS {
+            buf.extend((&mut rng).sample_iter(&Alphanumeric).take(PASS_LEN));
+            buf.push(b'\n');
+        }
 
         // The first password generated is the secret, so swap it deeper into
         // the list to a seed-derived position.
@@ -92,12 +94,10 @@ impl User {
             reason = "the modulo result is below NUM_PASSWORDS - OFFSET"
         )]
         let offset = (self.seed % (NUM_PASSWORDS - OFFSET) as u64) as usize + OFFSET;
-        passwords.swap(0, offset);
+        let (head, tail) = buf.split_at_mut(offset * (PASS_LEN + 1));
+        head[..PASS_LEN].swap_with_slice(&mut tail[..PASS_LEN]);
 
-        // join() adds no trailing separator, so an empty final element gives
-        // the file its trailing newline.
-        passwords.push(String::new());
-        passwords.join("\n")
+        String::from_utf8(buf).expect("Alphanumeric and newlines are valid UTF-8")
     }
 
     /// Check if the password is the correct one.
@@ -139,6 +139,7 @@ mod tests {
     use hegel::extras::jiff as jiff_gs;
     use hegel::generators::{self, Generator};
     use jiff::SignedDuration;
+    use rand::{RngExt, SeedableRng, distr::Alphanumeric, rngs::StdRng};
 
     use super::{AttemptResult, NUM_PASSWORDS, OFFSET, PASS_LEN, Timestamp, User};
 
@@ -184,6 +185,34 @@ mod tests {
             assert_eq!(line.len(), PASS_LEN);
             assert!(line.chars().all(|c| c.is_ascii_alphanumeric()));
         }
+    }
+
+    // Reference oracle: build the file the simple way, one String per line,
+    // swapped, then joined. passwords() must match it byte for byte, or a
+    // user's file would change under them mid-challenge.
+    #[hegel::test(test_cases = 12)]
+    fn passwords_matches_the_per_string_reference(tc: hegel::TestCase) {
+        let user = User::new(tc.draw(usernames()), tc.draw(timestamps()));
+
+        let mut rng = StdRng::seed_from_u64(user.seed);
+        let mut reference: Vec<String> = (0..NUM_PASSWORDS)
+            .map(|_| {
+                (&mut rng)
+                    .sample_iter(&Alphanumeric)
+                    .take(PASS_LEN)
+                    .map(char::from)
+                    .collect()
+            })
+            .collect();
+        #[expect(
+            clippy::cast_possible_truncation,
+            reason = "the modulo result is below NUM_PASSWORDS - OFFSET"
+        )]
+        let offset = (user.seed % (NUM_PASSWORDS - OFFSET) as u64) as usize + OFFSET;
+        reference.swap(0, offset);
+        reference.push(String::new());
+
+        assert_eq!(user.passwords(), reference.join("\n"));
     }
 
     #[hegel::test(test_cases = 12)]
