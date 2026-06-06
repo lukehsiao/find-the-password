@@ -20,7 +20,7 @@ pub async fn check_password(
     Path((username, password)): Path<(String, String)>,
     State(store): State<ChallengeStore>,
 ) -> Response {
-    match store.check(&username, &password, Timestamp::now()) {
+    match store.check(&username, &password, Timestamp::now) {
         CheckOutcome::NotFound => StatusCode::NOT_FOUND.into_response(),
         CheckOutcome::Incorrect => (StatusCode::OK, "false").into_response(),
         CheckOutcome::Correct => (StatusCode::OK, "true").into_response(),

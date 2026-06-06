@@ -80,7 +80,12 @@ impl ChallengeStore {
     /// # Panics
     /// If the leaderboard mutex is poisoned, which means another thread
     /// already panicked; crashing beats serving a corrupt leaderboard.
-    pub fn check(&self, username: &str, password: &str, now: Timestamp) -> CheckOutcome {
+    pub fn check(
+        &self,
+        username: &str,
+        password: &str,
+        now: impl FnOnce() -> Timestamp,
+    ) -> CheckOutcome {
         // Resolve the attempt before touching the leaderboard so the user
         // shard lock and the leaderboard mutex are never held together.
         let result = match self.users.get_mut(username) {
@@ -192,8 +197,9 @@ mod tests {
     fn check_on_unknown_user_is_not_found(tc: hegel::TestCase) {
         let store = ChallengeStore::new();
         let name = tc.draw(usernames());
+        let now = tc.draw(timestamps());
         assert_eq!(
-            store.check(&name, "anything", tc.draw(timestamps())),
+            store.check(&name, "anything", || now),
             CheckOutcome::NotFound
         );
     }
@@ -208,7 +214,7 @@ mod tests {
         let wrong = format!("{}-nope", store.get_user(&name).unwrap().secret);
         let attempts = tc.draw(generators::integers::<u64>().max_value(20));
         for _ in 0..attempts {
-            assert_eq!(store.check(&name, &wrong, now), CheckOutcome::Incorrect);
+            assert_eq!(store.check(&name, &wrong, || now), CheckOutcome::Incorrect);
         }
         assert!(store.leaders().is_empty());
     }
@@ -224,13 +230,13 @@ mod tests {
 
         let warmup = tc.draw(generators::integers::<u64>().max_value(10));
         for _ in 0..warmup {
-            store.check(&name, &wrong, now);
+            store.check(&name, &wrong, || now);
         }
 
-        assert_eq!(store.check(&name, &secret, now), CheckOutcome::Correct);
+        assert_eq!(store.check(&name, &secret, || now), CheckOutcome::Correct);
         // Extra checks after solving must not grow or change the leaderboard.
-        store.check(&name, &secret, now);
-        store.check(&name, &wrong, now);
+        store.check(&name, &secret, || now);
+        store.check(&name, &wrong, || now);
 
         let leaders = store.leaders();
         assert_eq!(leaders.len(), 1);
@@ -283,8 +289,8 @@ mod tests {
             for (name, secret) in names.iter().zip(&secrets) {
                 scope.spawn(move || {
                     // A miss before the hit, so check holds both locks in turn.
-                    store.check(name, "wrong", now);
-                    assert_eq!(store.check(name, secret, now), CheckOutcome::Correct);
+                    store.check(name, "wrong", || now);
+                    assert_eq!(store.check(name, secret, || now), CheckOutcome::Correct);
                 });
             }
         });
@@ -313,7 +319,7 @@ mod tests {
                 scope.spawn(move || {
                     for _ in 0..guesses_per_thread {
                         assert_eq!(
-                            store_ref.check("hammer", "wrong", now),
+                            store_ref.check("hammer", "wrong", || now),
                             CheckOutcome::Incorrect
                         );
                     }
@@ -321,7 +327,10 @@ mod tests {
             }
         });
 
-        assert_eq!(store.check("hammer", &secret, now), CheckOutcome::Correct);
+        assert_eq!(
+            store.check("hammer", &secret, || now),
+            CheckOutcome::Correct
+        );
         let leaders = store.leaders();
         assert_eq!(leaders.len(), 1);
         assert_eq!(
@@ -347,7 +356,7 @@ mod tests {
             for _ in 0..racers {
                 scope.spawn(move || {
                     assert_eq!(
-                        store_ref.check("racer", secret_ref, now),
+                        store_ref.check("racer", secret_ref, || now),
                         CheckOutcome::Correct
                     );
                 });

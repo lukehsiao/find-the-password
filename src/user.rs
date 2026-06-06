@@ -111,7 +111,14 @@ impl User {
     /// Attempts only count while the challenge is unsolved, and the first
     /// correct check produces the one and only [`Completion`]. Checks after
     /// solving still report correctness but change nothing.
-    pub fn record_attempt(&mut self, password: &str, now: Timestamp) -> AttemptResult {
+    ///
+    /// The clock is a closure so the wrong-guess path, which is nearly all
+    /// traffic, never pays for a timestamp it would not read.
+    pub fn record_attempt(
+        &mut self,
+        password: &str,
+        now: impl FnOnce() -> Timestamp,
+    ) -> AttemptResult {
         if self.solved_at.is_some() {
             return if self.check_password(password) {
                 AttemptResult::AlreadySolved
@@ -122,6 +129,7 @@ impl User {
 
         self.hits_before_solved += 1;
         if self.check_password(password) {
+            let now = now();
             self.solved_at = Some(now);
             AttemptResult::JustSolved(Completion {
                 username: self.username.clone(),
@@ -268,7 +276,7 @@ mod tests {
         let wrong = wrong_guess(&user.secret);
         for _ in 0..attempts {
             assert!(matches!(
-                user.record_attempt(&wrong, now),
+                user.record_attempt(&wrong, || now),
                 AttemptResult::Incorrect
             ));
         }
@@ -285,7 +293,7 @@ mod tests {
 
         let warmup = tc.draw(generators::integers::<u64>().max_value(10));
         for _ in 0..warmup {
-            user.record_attempt(&wrong, created);
+            user.record_attempt(&wrong, || created);
         }
 
         let elapsed = tc.draw(
@@ -297,7 +305,7 @@ mod tests {
             .checked_add(SignedDuration::from_secs(elapsed))
             .unwrap();
 
-        match user.record_attempt(&secret, solved_at) {
+        match user.record_attempt(&secret, || solved_at) {
             AttemptResult::JustSolved(completion) => {
                 assert_eq!(completion.attempts_to_solve, warmup + 1);
                 // Span has no PartialEq; compare as fixed-unit durations.
@@ -312,11 +320,11 @@ mod tests {
         // Checks after solving report correctness but never change the record.
         let frozen = user.hits_before_solved;
         assert!(matches!(
-            user.record_attempt(&secret, solved_at),
+            user.record_attempt(&secret, || solved_at),
             AttemptResult::AlreadySolved
         ));
         assert!(matches!(
-            user.record_attempt(&wrong, solved_at),
+            user.record_attempt(&wrong, || solved_at),
             AttemptResult::Incorrect
         ));
         assert_eq!(user.hits_before_solved, frozen);
