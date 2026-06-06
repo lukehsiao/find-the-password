@@ -43,7 +43,12 @@ async fn main() {
     use tracing::info;
     use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
-    use challenge::{app::App, router::api_router, state::AppState, store::ChallengeStore};
+    use challenge::{
+        app::App,
+        router::{check_router, passwords_router},
+        state::AppState,
+        store::ChallengeStore,
+    };
 
     // Enable tracing.
     tracing_subscriber::registry()
@@ -71,7 +76,7 @@ async fn main() {
 
     // build our application with a route
     let app = Router::new()
-        .merge(api_router())
+        .merge(passwords_router())
         .route(
             "/api/{*fn_name}",
             routing::get(server_fn_handler).post(server_fn_handler),
@@ -79,6 +84,10 @@ async fn main() {
         .leptos_routes_with_handler(routes, routing::get(leptos_routes_handler))
         .fallback(leptos_axum::file_and_error_handler::<AppState, _>(shell))
         .layer(CompressionLayer::new())
+        // Router::layer only wraps the routes added above it, so the check
+        // route merged here skips the compression machinery; its 4-5 byte
+        // bodies were never compressible anyway.
+        .merge(check_router())
         .with_state(app_state);
 
     let listener = tokio::net::TcpListener::bind(&addr).await.unwrap();
