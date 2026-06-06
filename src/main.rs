@@ -36,7 +36,7 @@ async fn leptos_routes_handler(state: State<AppState>, req: Request<AxumBody>) -
 
 #[tokio::main]
 async fn main() {
-    use axum::{Router, routing};
+    use axum::{Router, routing, serve::ListenerExt};
     use leptos::prelude::*;
     use leptos_axum::{LeptosRoutes, generate_route_list};
     use tower_http::compression::CompressionLayer;
@@ -90,7 +90,16 @@ async fn main() {
         .merge(check_router())
         .with_state(app_state);
 
-    let listener = tokio::net::TcpListener::bind(&addr).await.unwrap();
+    // Nagle would sit on the tiny check responses waiting for data that is
+    // never coming; every response here fits in one write.
+    let listener = tokio::net::TcpListener::bind(&addr)
+        .await
+        .unwrap()
+        .tap_io(|tcp| {
+            if let Err(err) = tcp.set_nodelay(true) {
+                tracing::debug!("failed to set TCP_NODELAY: {err}");
+            }
+        });
     info!("listening on http://{}", &addr);
     axum::serve(listener, app.into_make_service())
         .with_graceful_shutdown(shutdown_signal())
