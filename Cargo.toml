@@ -74,6 +74,13 @@ ssr = [
     "dep:regex",
 ]
 
+# Cross-crate inlining for the server binary; the request path spends its
+# time in hyper/axum/tower, not this crate, so LTO is where that shows up.
+# Costs release-build time.
+[profile.release]
+lto = "thin"
+codegen-units = 1
+
 # Defines a size-optimized profile for the WASM bundle in release mode
 [profile.wasm-release]
 inherits = "release"
