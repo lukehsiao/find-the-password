@@ -35,6 +35,14 @@ pub struct Completion {
     pub attempts_to_solve: u64,
 }
 
+/// One row in the homepage roster of all registered players.
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+pub struct RosterEntry {
+    pub username: String,
+    pub attempts: u64,
+    pub solved: bool,
+}
+
 /// What a single password check did to a user's state.
 #[derive(Debug, Clone)]
 pub enum AttemptResult {

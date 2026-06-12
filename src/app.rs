@@ -10,7 +10,7 @@ use leptos_router::{
 
 use crate::{
     error::AppError,
-    user::{Completion, User},
+    user::{Completion, RosterEntry, User},
 };
 
 /// Add a new user to the user map.
@@ -44,6 +44,15 @@ pub async fn get_leaders() -> Result<Vec<Completion>, AppError> {
     use crate::store::ChallengeStore;
 
     Ok(expect_context::<ChallengeStore>().leaders())
+}
+
+/// Read the full roster of registered players.
+#[allow(clippy::unused_async, reason = "async is required by #[server]")]
+#[server]
+pub async fn get_roster() -> Result<Vec<RosterEntry>, AppError> {
+    use crate::store::ChallengeStore;
+
+    Ok(expect_context::<ChallengeStore>().roster())
 }
 
 #[must_use]
@@ -158,9 +167,10 @@ fn HomePage() -> impl IntoView {
             .map(|error| error.to_string())
     };
 
-    // Blocking so the leaderboard is part of the server-rendered HTML
-    // instead of popping in after hydration.
+    // Blocking so the leaderboard and roster are part of the server-rendered
+    // HTML instead of popping in after hydration.
     let leaders = OnceResource::new_blocking(get_leaders());
+    let roster = OnceResource::new_blocking(get_roster());
 
     view! {
         <h1 id="finding-the-password">"Finding the password"</h1>
@@ -250,6 +260,42 @@ fn HomePage() -> impl IntoView {
                                                     </td>
                                                     <td style="text-align: right;">
                                                         <code>{completion.attempts_to_solve}</code>
+                                                    </td>
+                                                </tr>
+                                            }
+                                        })
+                                        .collect_view()
+                                })
+                            })
+                    }}
+                </Suspense>
+            </tbody>
+        </table>
+
+        <h2>"All Players"</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>"Username"</th>
+                    <th>"Solved"</th>
+                    <th style="text-align: right;">"Attempts"</th>
+                </tr>
+            </thead>
+            <tbody>
+                <Suspense fallback=move || {}>
+                    {move || {
+                        roster
+                            .get()
+                            .map(|r| {
+                                r.map(|v| {
+                                    v.into_iter()
+                                        .map(|entry| {
+                                            view! {
+                                                <tr>
+                                                    <td>{entry.username}</td>
+                                                    <td>{if entry.solved { "yes" } else { "no" }}</td>
+                                                    <td style="text-align: right;">
+                                                        <code>{entry.attempts}</code>
                                                     </td>
                                                 </tr>
                                             }

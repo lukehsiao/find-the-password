@@ -23,3 +23,29 @@ test("joining the challenge lands on the user page", async ({ page }) => {
     page.locator('a[download="passwords.txt"]'),
   ).toBeVisible();
 });
+
+test("the roster lists a registered player with their attempt count", async ({
+  page,
+}) => {
+  // Unique per run so reruns against a live server don't collide.
+  const username = "roster" + Date.now();
+
+  await page.goto("http://localhost:3000/");
+  await page.fill('input[name="username"]', username);
+  await page.click('input[type="submit"]');
+  await expect(page).toHaveURL(`http://localhost:3000/u/${username}`);
+
+  for (let i = 0; i < 3; i++) {
+    const res = await page.request.get(
+      `http://localhost:3000/u/${username}/check/wrongpassword`,
+    );
+    expect(await res.text()).toBe("false");
+  }
+
+  // An unsolved player is absent from the leaderboard but shows up in the
+  // roster with every attempt counted.
+  await page.goto("http://localhost:3000/");
+  const row = page.locator("tr", { hasText: username });
+  await expect(row).toHaveCount(1);
+  await expect(row.locator("code")).toHaveText("3");
+});

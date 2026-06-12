@@ -7,7 +7,7 @@ use tracing::info;
 
 use crate::{
     error::AppError,
-    user::{AttemptResult, Completion, User},
+    user::{AttemptResult, Completion, RosterEntry, User},
 };
 
 /// The outcome of checking one password guess.
@@ -117,6 +117,31 @@ impl ChallengeStore {
             .lock()
             .expect("leaderboard mutex poisoned")
             .clone()
+    }
+
+    /// Every registered user with their attempt count so far, sorted by
+    /// attempts descending (username ascending as tiebreak).
+    ///
+    /// Iteration takes each shard's read lock briefly; the sort happens
+    /// after all guards are dropped, so the check path is never stalled
+    /// behind it.
+    #[must_use]
+    pub fn roster(&self) -> Vec<RosterEntry> {
+        let mut entries: Vec<RosterEntry> = self
+            .users
+            .iter()
+            .map(|user| RosterEntry {
+                username: user.username.clone(),
+                attempts: user.hits_before_solved,
+                solved: user.solved_at.is_some(),
+            })
+            .collect();
+        entries.sort_unstable_by(|a, b| {
+            b.attempts
+                .cmp(&a.attempts)
+                .then_with(|| a.username.cmp(&b.username))
+        });
+        entries
     }
 }
 
@@ -242,6 +267,85 @@ mod tests {
         assert_eq!(leaders.len(), 1);
         assert_eq!(leaders[0].username, name);
         assert_eq!(leaders[0].attempts_to_solve, warmup + 1);
+    }
+
+    #[hegel::test]
+    fn roster_lists_every_registered_user(tc: hegel::TestCase) {
+        let store = ChallengeStore::new();
+        let now = tc.draw(timestamps());
+        let count = tc.draw(generators::integers::<u64>().max_value(20));
+        let names: Vec<String> = (0..count).map(|i| format!("player{i}")).collect();
+        for name in &names {
+            store.add_user(name, now).unwrap();
+        }
+
+        let mut listed: Vec<String> = store.roster().into_iter().map(|e| e.username).collect();
+        listed.sort();
+        let mut expected = names.clone();
+        expected.sort();
+        assert_eq!(listed, expected);
+    }
+
+    #[hegel::test]
+    fn roster_is_sorted_by_attempts_desc_then_username(tc: hegel::TestCase) {
+        let store = ChallengeStore::new();
+        let now = tc.draw(timestamps());
+        let count = tc.draw(generators::integers::<u64>().min_value(2).max_value(8));
+        for i in 0..count {
+            let name = format!("player{i}");
+            store.add_user(&name, now).unwrap();
+            let guesses = tc.draw(generators::integers::<u64>().max_value(10));
+            for _ in 0..guesses {
+                store.check(&name, "wrong", || now);
+            }
+        }
+
+        let roster = store.roster();
+        assert_eq!(roster.len(), usize::try_from(count).unwrap());
+        for pair in roster.windows(2) {
+            let (a, b) = (&pair[0], &pair[1]);
+            assert!(
+                a.attempts > b.attempts || (a.attempts == b.attempts && a.username < b.username),
+                "roster must sort by attempts desc, then username asc"
+            );
+        }
+    }
+
+    #[hegel::test]
+    fn roster_counts_match_attempts_and_freeze_after_solve(tc: hegel::TestCase) {
+        let store = ChallengeStore::new();
+        let now = tc.draw(timestamps());
+        store.add_user("solver", now).unwrap();
+        store.add_user("grinder", now).unwrap();
+        let secret = store.get_user("solver").unwrap().secret;
+        let wrong = format!("{secret}-nope");
+
+        let warmup = tc.draw(generators::integers::<u64>().max_value(10));
+        for _ in 0..warmup {
+            store.check("solver", &wrong, || now);
+        }
+        assert_eq!(
+            store.check("solver", &secret, || now),
+            CheckOutcome::Correct
+        );
+
+        let grinds = tc.draw(generators::integers::<u64>().max_value(10));
+        for _ in 0..grinds {
+            store.check("grinder", "wrong", || now);
+        }
+
+        // Checks after solving must not move the solver's frozen count.
+        store.check("solver", &secret, || now);
+        store.check("solver", &wrong, || now);
+
+        let roster = store.roster();
+        let solver = roster.iter().find(|e| e.username == "solver").unwrap();
+        let grinder = roster.iter().find(|e| e.username == "grinder").unwrap();
+        assert!(solver.solved);
+        assert_eq!(solver.attempts, warmup + 1);
+        assert_eq!(solver.attempts, store.leaders()[0].attempts_to_solve);
+        assert!(!grinder.solved);
+        assert_eq!(grinder.attempts, grinds);
     }
 
     // The single-threaded property tests above can't catch races. These drive
@@ -371,6 +475,48 @@ mod tests {
             store.get_user("racer").unwrap().hits_before_solved,
             attempts,
             "the counter freezes at the winning attempt"
+        );
+    }
+
+    // Roster snapshots race against check's shard write locks; this is the
+    // homepage-under-solver-load interleaving the feature must tolerate.
+    #[test]
+    fn roster_snapshots_are_monotone_under_check_contention() {
+        let store = ChallengeStore::new();
+        let now = Timestamp::UNIX_EPOCH;
+        store.add_user("hammer", now).unwrap();
+        let threads: u64 = 8;
+        let guesses_per_thread: u64 = 200;
+
+        let store_ref = &store;
+        std::thread::scope(|scope| {
+            for _ in 0..threads {
+                scope.spawn(move || {
+                    for _ in 0..guesses_per_thread {
+                        store_ref.check("hammer", "wrong", || now);
+                    }
+                });
+            }
+
+            let mut last = 0;
+            for _ in 0..50 {
+                let roster = store_ref.roster();
+                let entry = roster.iter().find(|e| e.username == "hammer").unwrap();
+                assert!(!entry.solved);
+                assert!(
+                    entry.attempts >= last,
+                    "attempt counts must never go backwards"
+                );
+                last = entry.attempts;
+            }
+        });
+
+        let roster = store.roster();
+        assert_eq!(roster.len(), 1);
+        assert_eq!(
+            roster[0].attempts,
+            threads * guesses_per_thread,
+            "every wrong guess must appear in the final roster"
         );
     }
 }
