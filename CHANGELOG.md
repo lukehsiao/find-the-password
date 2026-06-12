@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.2.3
+
+### Patch Changes
+
+- [`5bcaf52`](https://github.com/lukehsiao/find-the-password/commit/5bcaf521a25492757c21901d49e4f492f524361c) - **feat**: show the whole player list of the current run.
+
+<pre>
+$ git-stats v0.2.2..v0.2.3
+Author           Commits  Changed Files  Insertions  Deletions  Net Δ
+dependabot[bot]        5              5          +5         -5      0
+Luke Hsiao             3              8        +304        -38   +266
+Total                  8             13        +309        -43   +266
+</pre>
+
 ## 0.2.2
 
 ### Patch Changes
