@@ -8,10 +8,11 @@ _default:
 image tag="local":
     podman build --tag find-the-password:{{tag}} --file Containerfile {{justfile_directory()}}
 
-# Runs clippy on the sources
+# Runs linters on the sources
 [group('dev')]
 check:
 	cargo clippy --all-features --all-targets --locked -- -D warnings
+	zizmor .
 
 # Check links in markdown files
 [group('dev')]
