@@ -5,6 +5,7 @@ use std::{
 
 use anyhow::{Result, anyhow, ensure};
 use futures::{StreamExt, stream};
+use indicatif::{ProgressBar, ProgressStyle};
 use reqwest::ClientBuilder;
 use tracing::{debug, info};
 
@@ -16,13 +17,21 @@ async fn main() -> Result<()> {
     io::stdin().read_to_string(&mut input)?;
     let urls: Vec<String> = input
         .lines()
-        .map(|pass| format!("http://localhost:3000/u/asdf/check/{pass}"))
+        .map(|pass| format!("https://challenge.hsiao.dev/u/example/check/{pass}"))
         .collect();
 
     let client = ClientBuilder::new().build()?;
 
     let num_cpus = thread::available_parallelism().map_or(1, std::num::NonZero::get);
     info!("Num CPUs: {num_cpus}");
+
+    let pb = ProgressBar::new(urls.len() as u64);
+    pb.set_style(
+        ProgressStyle::with_template(
+            "{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] {pos}/{len} ({per_sec}, ETA {eta})",
+        )?
+        .progress_chars("#>-"),
+    );
 
     let bodies = stream::iter(urls)
         .map(|url| {
@@ -40,8 +49,10 @@ async fn main() -> Result<()> {
 
     bodies
         .for_each(|b| async {
+            pb.inc(1);
             match b {
                 Ok((pass, body)) if &body == "true" => {
+                    pb.finish_and_clear();
                     println!("Password is: {pass}");
                     process::exit(0);
                 }
@@ -53,5 +64,6 @@ async fn main() -> Result<()> {
         })
         .await;
 
+    pb.finish_and_clear();
     Err(anyhow!("Didn't find the password :("))
 }
