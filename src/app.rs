@@ -188,7 +188,10 @@ fn HomePage() -> impl IntoView {
                 <pre>
                     <code>"https://challenge.hsiao.dev/u/{username}/check/{password}"</code>
                 </pre>"where "<code>"username"</code>" is your username and "<code>"password"</code>
-                is the password you are checking.
+                " is the password you are checking." <br /> "For example, if my username was "
+                <code>"john"</code> " and I wanted to check password " <code>"asdf"</code>
+                ", the URL would be " <code>"https://challenge.hsiao.dev/u/john/check/asdf"</code>
+                "."
             </li>
             <li>
                 "If the password is correct, you'll see "<code>"true"</code>
@@ -203,7 +206,9 @@ fn HomePage() -> impl IntoView {
             <li>
                 "No sharing a solution with each other, everyone has to do their own work, but you're free to collaborate."
             </li>
-            <li>"If you can solve it, you have to share with me what you did."</li>
+            <li>
+                "If you can solve it, you have to share with me what you did, along with some reflection about the challenge (e.g., what you learned, what was hard, what was surprising)."
+            </li>
             <li>"Only use the url with your own name in it, don't impersonate others."</li>
             <li>
                 "There is no limit to how many times you can try. If you want to completely restart, make a new user."
