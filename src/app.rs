@@ -257,7 +257,7 @@ fn HomePage() -> impl IntoView {
                                                             let rounded = completion
                                                                 .time_to_solve
                                                                 .round(
-                                                                    SpanRound::new().largest(Unit::Hour).smallest(Unit::Second),
+                                                                    SpanRound::new().largest(Unit::Day).smallest(Unit::Second),
                                                                 )
                                                                 .unwrap();
                                                             format!("{rounded:#}")
