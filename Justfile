@@ -12,6 +12,10 @@ image tag="local":
 [group('dev')]
 check:
 	cargo clippy --all-features --all-targets --locked -- -D warnings
+
+# Lint GitHub Actions workflows with zizmor
+[group('dev')]
+zizmor:
 	zizmor .
 
 # Check links in markdown files
