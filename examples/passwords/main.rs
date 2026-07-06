@@ -1,43 +1,46 @@
 use std::{
-    io::{self, Read},
-    process, thread,
+    io::{self, BufRead},
+    process,
 };
 
 use anyhow::{Result, anyhow, ensure};
 use futures::{StreamExt, stream};
 use indicatif::{ProgressBar, ProgressStyle};
 use reqwest::ClientBuilder;
-use tracing::{debug, info};
+use tracing::debug;
+
+// Password checking is network-bound: the client spends its time waiting on
+// round-trips, not the CPU, so concurrency should track how many requests the
+// server will service at once rather than the core count. The check route is
+// unthrottled and Caddy multiplexes these tiny requests over a single HTTP/2
+// connection, whose stream limit is Go's default of 250. 256 saturates that
+// ceiling while staying well under the open-file limit if the connection ever
+// falls back to HTTP/1.1, where each request needs its own socket.
+const CONCURRENCY: usize = 256;
 
 #[tokio::main]
 async fn main() -> Result<()> {
     tracing_subscriber::fmt::init();
 
-    let mut input = String::new();
-    io::stdin().read_to_string(&mut input)?;
-    let urls: Vec<String> = input
-        .lines()
-        .map(|pass| format!("https://challenge.hsiao.dev/u/example/check/{pass}"))
-        .collect();
-
     let client = ClientBuilder::new().build()?;
 
-    let num_cpus = thread::available_parallelism().map_or(1, std::num::NonZero::get);
-    info!("Num CPUs: {num_cpus}");
+    // The input is streamed, so the total is unknown until we reach the end. A
+    // spinner reports rate and count without a percentage or ETA.
+    let pb = ProgressBar::new_spinner();
+    pb.set_style(ProgressStyle::with_template(
+        "{spinner:.green} [{elapsed_precise}] {human_pos} checked ({per_sec})",
+    )?);
 
-    let pb = ProgressBar::new(urls.len() as u64);
-    pb.set_style(
-        ProgressStyle::with_template(
-            "{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] {pos}/{len} ({per_sec}, ETA {eta})",
-        )?
-        .progress_chars("#>-"),
-    );
+    // Read stdin line by line and let buffer_unordered pull lines on demand, so
+    // at most CONCURRENCY passwords are resident no matter how large the file is.
+    let lines = io::stdin().lock().lines();
 
-    let bodies = stream::iter(urls)
-        .map(|url| {
+    let bodies = stream::iter(lines)
+        .map(|line| {
             let client = &client;
-            let pass = url.rsplit('/').next().unwrap().to_string();
             async move {
+                let pass = line?;
+                let url = format!("http://localhost:3000/u/luke/check/{pass}");
                 let resp = client.get(url).send().await?;
                 ensure!(resp.status().is_success(), "Bad http request");
                 let text = resp.text().await?;
@@ -45,7 +48,7 @@ async fn main() -> Result<()> {
                 result
             }
         })
-        .buffer_unordered(num_cpus);
+        .buffer_unordered(CONCURRENCY);
 
     bodies
         .for_each(|b| async {
