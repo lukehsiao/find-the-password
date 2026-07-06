@@ -257,7 +257,14 @@ fn HomePage() -> impl IntoView {
                                                             let rounded = completion
                                                                 .time_to_solve
                                                                 .round(
-                                                                    SpanRound::new().largest(Unit::Day).smallest(Unit::Second),
+                                                                    SpanRound::new()
+                                                                        .largest(Unit::Day)
+                                                                        .smallest(Unit::Second)
+                                                                        // A solve time is elapsed wall-clock, so its days
+                                                                        // are a flat 24 hours. Without this, jiff won't
+                                                                        // round to days absent a reference date and errors,
+                                                                        // which this unwrap would turn into a panic.
+                                                                        .days_are_24_hours(),
                                                                 )
                                                                 .unwrap();
                                                             format!("{rounded:#}")
