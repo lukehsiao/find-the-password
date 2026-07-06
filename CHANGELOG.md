@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.2.4
+
+### Patch Changes
+
+- [`e601598`](https://github.com/lukehsiao/find-the-password/commit/e6015984d79fd7f8b60d7e17416be7d669f81311) - **refactor**: use days as largest unit for time-to-solve, not hours.
+
+- [`413f160`](https://github.com/lukehsiao/find-the-password/commit/413f1603c817752a21e7ea46284fcf3a759cc343) - **chore**: refine the instructions for clarity.
+
+- [`f49a604`](https://github.com/lukehsiao/find-the-password/commit/f49a60433886505a4c8cd2382b8b86f1d1597bbf) - **fix**: don't panic homepage on extremely fast solves due to rounding errors.
+
+<pre>
+$ git-stats v0.2.3..v0.2.4
+Author           Commits  Changed Files  Insertions  Deletions  Net Δ
+Luke Hsiao            15             31        +423       -478    -55
+dependabot[bot]        4              8        +250        -30   +220
+Total                 19             39        +673       -508   +165
+</pre>
+
 ## 0.2.3
 
 ### Patch Changes
