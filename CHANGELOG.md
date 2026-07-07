@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.2.5
+
+### Patch Changes
+
+- [`695c88d`](https://github.com/lukehsiao/find-the-password/commit/695c88d8e611c0aafed795f9ccd0b66129543cfc) - **chore**: tweak the wording and add a bonus challenge
+
+<pre>
+$ git-stats v0.2.4..v0.2.5
+Author      Commits  Changed Files  Insertions  Deletions  Net Δ
+Luke Hsiao        3              6         +41        -79    -38
+Total             3              6         +41        -79    -38
+</pre>
+
 ## 0.2.4
 
 ### Patch Changes
