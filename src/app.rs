@@ -177,7 +177,7 @@ fn HomePage() -> impl IntoView {
         <p>
             "I have a text file with 60,000 passwords (one password per line). I seem to have lost my password in this file. Can you help me find it?"
         </p>
-        <h2 id="how-to-play">"How to Play"</h2>
+        <h2 id="how-to-play">"How to play"</h2>
         <ol>
             <li>"Create a new user by choosing a username below."</li>
             <li>
@@ -214,7 +214,12 @@ fn HomePage() -> impl IntoView {
                 "There is no limit to how many times you can try. If you want to completely restart, make a new user."
             </li>
         </ul>
-        <h2 id="lets-go">"Let's Go!"</h2>
+        <h2 id="extra-challenge">"Want an extra challenge?"</h2>
+        <p>
+            "Finding the password once is satisfying. Finding it "<em>"fast"</em>
+            " is a different game entirely. The leaderboard below tracks how long every solve takes from downloading the password file until the solve. So here's the real question: could you build a solution that finds the password for a brand-new user in under five minutes? What about under two minutes? Climb to the top of the board and find out."
+        </p>
+        <h2 id="lets-go">"Let's go!"</h2>
 
         {move || {
             error_msg()
@@ -260,10 +265,6 @@ fn HomePage() -> impl IntoView {
                                                                     SpanRound::new()
                                                                         .largest(Unit::Day)
                                                                         .smallest(Unit::Second)
-                                                                        // A solve time is elapsed wall-clock, so its days
-                                                                        // are a flat 24 hours. Without this, jiff won't
-                                                                        // round to days absent a reference date and errors,
-                                                                        // which this unwrap would turn into a panic.
                                                                         .days_are_24_hours(),
                                                                 )
                                                                 .unwrap();
@@ -284,7 +285,7 @@ fn HomePage() -> impl IntoView {
             </tbody>
         </table>
 
-        <h2>"All Players"</h2>
+        <h2>"All players"</h2>
         <table>
             <thead>
                 <tr>
