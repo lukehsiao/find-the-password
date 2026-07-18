@@ -196,7 +196,7 @@ mod tests {
     };
 
     fn usernames() -> impl Generator<String> {
-        generators::from_regex(r"[a-zA-Z0-9]{3,32}").fullmatch(true)
+        generators::from_regex(r"[a-zA-Z0-9._-]{3,32}").fullmatch(true)
     }
 
     // Bound to 2000..2090 so the millisecond seed math and the solve-time
