@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.3.0
+
+### Minor Changes
+
+- [`d3c9602`](https://github.com/lukehsiao/find-the-password/commit/d3c960201c753a77e3aa806787b8ff52380c66eb) - **Feature**: Finding the password no longer auto-solves the challenge. The check URL still answers `true`/`false`, but the solve is only recorded once the player returns to their user page and confirms the password there. Every evaluated guess counts as an attempt, whether it goes through the check URL or the confirmation box, and confirmations are throttled to one every 10 seconds so the form itself can't be brute-forced. Server function errors now also carry semantically correct HTTP statuses (404, 409, 422, and 429 with `Retry-After`) instead of a blanket 500.
+
+<pre>
+$ git-stats v0.2.5..v0.3.0
+Author           Commits  Changed Files  Insertions  Deletions  Net Δ
+dependabot[bot]        5              7         +10        -10      0
+Luke Hsiao             2             10        +920       -239   +681
+Total                  7             17        +930       -249   +681
+</pre>
+
 ## 0.2.5
 
 ### Patch Changes
