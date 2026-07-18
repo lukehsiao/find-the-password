@@ -116,6 +116,24 @@ mod tests {
         assert_eq!(body, "true");
     }
 
+    // Locks the confirm-flow contract: the check URL reads true but never
+    // solves, no matter how often the correct password goes past.
+    #[tokio::test]
+    async fn correct_check_does_not_solve() {
+        let (router, store) = app();
+        store.add_user("dave", Timestamp::now()).unwrap();
+        let secret = store.get_user("dave").unwrap().secret;
+
+        for _ in 0..2 {
+            let (status, body) = get(router.clone(), &format!("/u/dave/check/{secret}")).await;
+            assert_eq!(status, StatusCode::OK);
+            assert_eq!(body, "true");
+        }
+
+        assert!(store.get_user("dave").unwrap().solved_at.is_none());
+        assert!(store.leaders().is_empty());
+    }
+
     #[tokio::test]
     async fn passwords_download_matches_store() {
         let (router, store) = app();

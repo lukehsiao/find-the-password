@@ -3,7 +3,6 @@ use axum::{
     http::StatusCode,
     response::{IntoResponse, Response},
 };
-use jiff::Timestamp;
 
 use crate::store::{ChallengeStore, CheckOutcome};
 
@@ -36,7 +35,7 @@ pub async fn check_password(
         // The route template guarantees both captures; stay graceful anyway.
         return StatusCode::NOT_FOUND.into_response();
     };
-    match store.check(username, password, Timestamp::now) {
+    match store.check(username, password) {
         CheckOutcome::NotFound => StatusCode::NOT_FOUND.into_response(),
         CheckOutcome::Incorrect => (StatusCode::OK, "false").into_response(),
         CheckOutcome::Correct => (StatusCode::OK, "true").into_response(),

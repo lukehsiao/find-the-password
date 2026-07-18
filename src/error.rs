@@ -17,10 +17,36 @@ pub enum AppError {
     UsernameTaken,
     #[error("No user with that username.")]
     UserNotFound,
+    #[error("That's not the password. Keep hunting!")]
+    WrongPassword,
+    #[error("Whoa, slow down! You can only confirm once every 10 seconds.")]
+    ConfirmThrottled,
     /// Framework-level failures (network, serialization, ...) funnel here so
     /// every server function can use `AppError` as its only error type.
     #[error("{0}")]
     ServerFn(ServerFnErrorErr),
+}
+
+#[cfg(feature = "ssr")]
+impl AppError {
+    /// The HTTP status an error response travels with.
+    ///
+    /// `server_fn` flattens every application error to a blanket 500 on the
+    /// wire; the server functions override that through `ResponseOptions`
+    /// so client mistakes stay in the 4xx range for anyone scripting the
+    /// endpoints.
+    #[must_use]
+    pub fn status(&self) -> axum::http::StatusCode {
+        use axum::http::StatusCode;
+
+        match self {
+            AppError::InvalidUsername | AppError::WrongPassword => StatusCode::UNPROCESSABLE_ENTITY,
+            AppError::UsernameTaken => StatusCode::CONFLICT,
+            AppError::UserNotFound => StatusCode::NOT_FOUND,
+            AppError::ConfirmThrottled => StatusCode::TOO_MANY_REQUESTS,
+            AppError::ServerFn(_) => StatusCode::INTERNAL_SERVER_ERROR,
+        }
+    }
 }
 
 impl FromServerFnError for AppError {
@@ -42,11 +68,32 @@ mod tests {
             AppError::InvalidUsername,
             AppError::UsernameTaken,
             AppError::UserNotFound,
+            AppError::WrongPassword,
+            AppError::ConfirmThrottled,
             AppError::ServerFn(ServerFnErrorErr::ServerError("boom".to_string())),
         ];
         for error in errors {
             assert_eq!(error, AppError::de(error.ser()));
         }
+    }
+
+    // Only framework failures may report as server errors; everything a
+    // player can trigger is their mistake and must stay in the 4xx range.
+    #[cfg(feature = "ssr")]
+    #[test]
+    fn every_player_error_is_a_client_error() {
+        let player_errors = [
+            AppError::InvalidUsername,
+            AppError::UsernameTaken,
+            AppError::UserNotFound,
+            AppError::WrongPassword,
+            AppError::ConfirmThrottled,
+        ];
+        for error in player_errors {
+            assert!(error.status().is_client_error(), "{error:?}");
+        }
+        let framework = AppError::ServerFn(ServerFnErrorErr::ServerError("boom".to_string()));
+        assert!(framework.status().is_server_error());
     }
 
     #[test]
