@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.3.1
+
+### Patch Changes
+
+- [`6520919`](https://github.com/lukehsiao/find-the-password/commit/6520919f47dcfb388f3d027d9e1a2d48b9db0a67) - **refactor**: usernames may now include hyphens, periods, and underscores alongside ASCII letters and digits. All three are URL-unreserved characters, and the 3-character minimum already rules out the special `.` and `..` path segments, so the new names drop into `/u/{username}` URLs verbatim.
+
+<pre>
+$ git-stats v0.3.0..v0.3.1
+Author           Commits  Changed Files  Insertions  Deletions  Net Δ
+Luke Hsiao             3             16        +314       -334    -20
+dependabot[bot]        2              5         +12        -12      0
+Total                  5             21        +326       -346    -20
+</pre>
+
 ## 0.3.0
 
 ### Minor Changes
