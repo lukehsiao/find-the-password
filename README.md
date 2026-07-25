@@ -166,7 +166,7 @@ With [`mise`](https://mise.jdx.dev/) and `chromium` installed, the whole thing i
 
 ```
 sudo pacman -S chromium   # once
-mise run e2e              # npm ci, then cargo leptos end-to-end
+mise run e2e              # pnpm install, then cargo leptos end-to-end
 ```
 
 `mise.toml` sets `PLAYWRIGHT_CHROMIUM_PATH=/usr/bin/chromium` and skips the browser download.

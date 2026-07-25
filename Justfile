@@ -67,6 +67,12 @@ watch:
 install:
 	pnpm install
 
+# Update pnpm-managed dependencies (release tooling and end2end tests)
+[group('build')]
+update:
+	pnpm update --latest
+	pnpm --dir end2end update --latest
+
 # Interactively create a changeset.
 [group('release')]
 changeset *args:

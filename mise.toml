@@ -19,7 +19,7 @@ PLAYWRIGHT_CHROMIUM_PATH = "/usr/bin/chromium"
 [tasks.e2e-setup]
 description = "Install the end-to-end JS dependencies"
 dir = "end2end"
-run = "npm ci"
+run = "pnpm install --frozen-lockfile"
 
 [tasks.e2e]
 description = "Run the end-to-end tests (uses the system Chromium)"
