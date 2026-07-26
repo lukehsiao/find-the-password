@@ -1,4 +1,4 @@
-FROM rust:1.96-trixie AS builder
+FROM rust:1.97-trixie AS builder
 
 # Install cargo-binstall, which makes it easier to install other
 # cargo extensions like cargo-leptos
