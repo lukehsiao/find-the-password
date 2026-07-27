@@ -17,7 +17,7 @@ crate-type = ["cdylib", "rlib"]
 axum = { version = "0.8", optional = true, features = ["macros"] }
 console_error_panic_hook = "0.1"
 dashmap = "6.2.1"
-jiff = { version = "0.2.34", features = ["serde"] }
+jiff = { version = "0.2.35", features = ["serde"] }
 leptos = { version = "0.8.20" }
 leptos_axum = { version = "0.8.10", optional = true }
 leptos_meta = { version = "0.8.6" }
