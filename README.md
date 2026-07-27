@@ -88,7 +88,7 @@ just run
 ## Example Solution
 
 An example, fairly optimal but succinct solution can be found in the `examples/` directory.
-I say fairly optimal because it uses full parallelism with `rayon`, and likely the more efficient, but just as fast option would be to just use concurrency with `tokio`.
+It uses `tokio` and `reqwest` to run up to 256 requests concurrently (via `buffer_unordered`), and streams the password list from stdin line by line, so only the in-flight passwords are held in memory no matter how large the file is.
 
 Modify the source code as needed (e.g., to change the username or hostname for the URLs), then you can run it with
 
