@@ -363,7 +363,7 @@ fn HomePage() -> impl IntoView {
         <h2 id="extra-challenge">"Want an extra challenge?"</h2>
         <p>
             "Finding the password once is satisfying. Finding it "<em>"fast"</em>
-            " is a different game entirely. The leaderboard below tracks how long every solve takes, from joining the challenge until the password is confirmed on your user page. Every guess counts as an attempt, whether it goes through the check URL or the confirmation box, so a sloppy script that keeps guessing after it finds the password keeps inflating your attempt count. So here's the real question: could you build a solution that finds the password for a brand-new user in under five minutes? What about under two minutes? Climb to the top of the board and find out."
+            " is a different game entirely. The leaderboard below tracks how long every solve takes, from joining the challenge until the password is confirmed on your user page. So here's a tougher challenge: could you build a solution that finds the password for a brand-new user in under five minutes? What about under one minute? 20 seconds? Climb to the top of the board and find out."
         </p>
         <h2 id="lets-go">"Let's go!"</h2>
 
