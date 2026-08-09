@@ -11,6 +11,16 @@ pub async fn healthcheck() -> impl IntoResponse {
     StatusCode::OK
 }
 
+/// Tell every crawler to stay away from every page.
+///
+/// The site is a classroom game: per-player check URLs and passwords.txt
+/// downloads are noise no search index should surface. A `&'static str`
+/// response already carries `text/plain; charset=utf-8`, which is what
+/// robots.txt requires.
+pub async fn robots_txt() -> &'static str {
+    "User-agent: *\nDisallow: /\n"
+}
+
 /// Check a password for correctness.
 ///
 /// The literal `true`/`false` bodies and the 200/404 statuses are the

@@ -1,16 +1,16 @@
 use axum::{Router, extract::FromRef, routing::get};
 
 use crate::{
-    http::{check_password, get_passwords, healthcheck},
+    http::{check_password, get_passwords, healthcheck, robots_txt},
     store::ChallengeStore,
 };
 
-/// The high-volume check route plus the healthcheck.
+/// The high-volume check route, the healthcheck, and robots.txt.
 ///
 /// Split from [`passwords_router`] so `main()` can mount it after the
-/// compression layer: check bodies are 4-5 bytes, far below the
-/// compressor's 32-byte floor, so the layer could only add per-request
-/// overhead here.
+/// compression layer: check bodies are 4-5 bytes and robots.txt is 26,
+/// all below the compressor's 32-byte floor, so the layer could only add
+/// per-request overhead here.
 pub fn check_router<S>() -> Router<S>
 where
     S: Clone + Send + Sync + 'static,
@@ -18,6 +18,7 @@ where
 {
     Router::new()
         .route("/up", get(healthcheck))
+        .route("/robots.txt", get(robots_txt))
         .route("/u/{username}/check/{password}", get(check_password))
 }
 
@@ -88,6 +89,14 @@ mod tests {
         let (router, _store) = app();
         let (status, _) = get(router, "/up").await;
         assert_eq!(status, StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn robots_txt_disallows_all_crawlers() {
+        let (router, _store) = app();
+        let (status, body) = get(router, "/robots.txt").await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(body, "User-agent: *\nDisallow: /\n");
     }
 
     #[tokio::test]
