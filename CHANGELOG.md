@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.3.2
+
+### Patch Changes
+
+- [`789acb9`](https://github.com/lukehsiao/find-the-password/commit/789acb9ae156d04b348d7c8de861a632b0deb073) - **chore**: add a robots.txt default
+
+<pre>
+$ git-stats v0.3.1..v0.3.2
+Author           Commits  Changed Files  Insertions  Deletions  Net Δ
+dependabot[bot]       13             24         +51       -220   -169
+Luke Hsiao             5              9        +121        -99    +22
+Total                 18             33        +172       -319   -147
+</pre>
+
 ## 0.3.1
 
 ### Patch Changes
