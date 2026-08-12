@@ -40,7 +40,7 @@ async fn main() -> Result<()> {
             let client = &client;
             async move {
                 let pass = line?;
-                let url = format!("http://localhost:3000/u/luke/check/{pass}");
+                let url = format!("http://challenge.hsiao.dev/u/fastexample/check/{pass}");
                 let resp = client.get(url).send().await?;
                 ensure!(resp.status().is_success(), "Bad http request");
                 let text = resp.text().await?;
