@@ -4,10 +4,25 @@ use std::{
 };
 
 use anyhow::{Result, anyhow, ensure};
+use clap::Parser;
 use futures::{StreamExt, stream};
 use indicatif::{ProgressBar, ProgressStyle};
 use reqwest::ClientBuilder;
 use tracing::debug;
+use url::Url;
+
+#[derive(Parser)]
+#[command(version, about, long_about = None)]
+struct Cli {
+    /// The username to check against.
+    #[arg(short, long)]
+    username: String,
+
+    #[expect(clippy::doc_markdown)]
+    /// The hostname for the challenge, e.g. (http://localhost:3000).
+    #[arg(short, long)]
+    hostname: Url,
+}
 
 // Password checking is network-bound: the client spends its time waiting on
 // round-trips, not the CPU, so concurrency should track how many requests the
@@ -21,6 +36,7 @@ const CONCURRENCY: usize = 256;
 #[tokio::main]
 async fn main() -> Result<()> {
     tracing_subscriber::fmt::init();
+    let cli = Cli::parse();
 
     let client = ClientBuilder::new().build()?;
 
@@ -38,9 +54,11 @@ async fn main() -> Result<()> {
     let bodies = stream::iter(lines)
         .map(|line| {
             let client = &client;
+            let hostname = cli.hostname.clone();
+            let username = cli.username.clone();
             async move {
                 let pass = line?;
-                let url = format!("http://localhost:3000/u/example/check/{pass}");
+                let url = format!("{hostname}u/{username}/check/{pass}");
                 let resp = client.get(url).send().await?;
                 ensure!(resp.status().is_success(), "Bad http request");
                 let text = resp.text().await?;
