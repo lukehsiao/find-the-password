@@ -1,0 +1,17 @@
+# Marks end2end as its own workspace root so pnpm stops walking up to the
+# repository root, whose pnpm-workspace.yaml holds only changesets release
+# settings. Without this boundary, `pnpm install` here resolves the root
+# workspace and installs the changesets tooling rather than this package's
+# devDependencies, leaving `pnpm exec playwright` with nothing to run.
+#
+# A boundary here rather than listing end2end in the root's `packages`: any
+# truthy `packages` key at the root takes @manypkg out of single-package mode
+# and breaks root release tagging. Globbing `.` alongside end2end renames the
+# tags from `v*` to `challenge@*`, which also hides the existing ones from
+# changesets' own lookup; omitting `.` drops `challenge` from the package set
+# entirely, so `changeset version` fails instead.
+#
+# Keep the list, even empty. @manypkg/tools recognizes a workspace root by a
+# truthy `packages` key and dereferences it unguarded, so a comment-only file
+# parses as null and crashes it.
+packages: []
