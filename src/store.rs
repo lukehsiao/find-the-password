@@ -183,17 +183,17 @@ pub fn valid_username(username: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use hegel::extras::jiff as jiff_gs;
-    use hegel::generators::{self, Generator};
+    use hegel::generators::{self, PrintableGenerator};
 
     use jiff::Timestamp;
 
     use super::{AppError, ChallengeStore, CheckOutcome, ConfirmOutcome, valid_username};
 
-    fn usernames() -> impl Generator<String> {
+    fn usernames() -> impl PrintableGenerator<String> {
         generators::from_regex(r"[a-zA-Z0-9._-]{3,32}").fullmatch(true)
     }
 
-    fn timestamps() -> impl Generator<Timestamp> {
+    fn timestamps() -> impl PrintableGenerator<Timestamp> {
         let min = Timestamp::from_second(946_684_800).unwrap();
         let max = Timestamp::from_second(3_786_825_600).unwrap();
         jiff_gs::timestamps().min_value(min).max_value(max)
@@ -201,7 +201,8 @@ mod tests {
 
     #[hegel::test]
     fn valid_username_accepts_well_formed_names(tc: hegel::TestCase) {
-        assert!(valid_username(&tc.draw(usernames())));
+        let name = tc.draw(usernames());
+        assert!(valid_username(&name));
     }
 
     #[hegel::test]
@@ -263,10 +264,8 @@ mod tests {
     fn add_user_rejects_invalid_names(tc: hegel::TestCase) {
         let store = ChallengeStore::new();
         let name = tc.draw(generators::from_regex(r"[a-zA-Z0-9._-]{0,2}").fullmatch(true));
-        assert_eq!(
-            store.add_user(&name, tc.draw(timestamps())),
-            Err(AppError::InvalidUsername)
-        );
+        let now = tc.draw(timestamps());
+        assert_eq!(store.add_user(&name, now), Err(AppError::InvalidUsername));
     }
 
     #[hegel::test]

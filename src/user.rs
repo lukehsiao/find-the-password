@@ -187,7 +187,7 @@ impl User {
 #[cfg(test)]
 mod tests {
     use hegel::extras::jiff as jiff_gs;
-    use hegel::generators::{self, Generator};
+    use hegel::generators::{self, PrintableGenerator};
     use jiff::SignedDuration;
     use rand::{RngExt, SeedableRng, distr::Alphanumeric, rngs::StdRng};
 
@@ -195,13 +195,13 @@ mod tests {
         CONFIRM_COOLDOWN, ConfirmResult, NUM_PASSWORDS, OFFSET, PASS_LEN, Timestamp, User,
     };
 
-    fn usernames() -> impl Generator<String> {
+    fn usernames() -> impl PrintableGenerator<String> {
         generators::from_regex(r"[a-zA-Z0-9._-]{3,32}").fullmatch(true)
     }
 
     // Bound to 2000..2090 so the millisecond seed math and the solve-time
     // offsets below can never overflow; the logic doesn't care about the era.
-    fn timestamps() -> impl Generator<Timestamp> {
+    fn timestamps() -> impl PrintableGenerator<Timestamp> {
         let min = Timestamp::from_second(946_684_800).unwrap();
         let max = Timestamp::from_second(3_786_825_600).unwrap();
         jiff_gs::timestamps().min_value(min).max_value(max)
@@ -214,7 +214,9 @@ mod tests {
 
     #[hegel::test(test_cases = 12)]
     fn passwords_contains_the_secret_exactly_once(tc: hegel::TestCase) {
-        let user = User::new(tc.draw(usernames()), tc.draw(timestamps()));
+        let name = tc.draw(usernames());
+        let created = tc.draw(timestamps());
+        let user = User::new(name, created);
         let hits = user
             .passwords()
             .lines()
@@ -225,14 +227,18 @@ mod tests {
 
     #[hegel::test(test_cases = 12)]
     fn passwords_has_60000_lines_and_a_trailing_newline(tc: hegel::TestCase) {
-        let file = User::new(tc.draw(usernames()), tc.draw(timestamps())).passwords();
+        let name = tc.draw(usernames());
+        let created = tc.draw(timestamps());
+        let file = User::new(name, created).passwords();
         assert!(file.ends_with('\n'));
         assert_eq!(file.lines().count(), NUM_PASSWORDS);
     }
 
     #[hegel::test(test_cases = 12)]
     fn every_password_is_32_alphanumeric_chars(tc: hegel::TestCase) {
-        let file = User::new(tc.draw(usernames()), tc.draw(timestamps())).passwords();
+        let name = tc.draw(usernames());
+        let created = tc.draw(timestamps());
+        let file = User::new(name, created).passwords();
         for line in file.lines() {
             assert_eq!(line.len(), PASS_LEN);
             assert!(line.chars().all(|c| c.is_ascii_alphanumeric()));
@@ -244,7 +250,9 @@ mod tests {
     // user's file would change under them mid-challenge.
     #[hegel::test(test_cases = 12)]
     fn passwords_matches_the_per_string_reference(tc: hegel::TestCase) {
-        let user = User::new(tc.draw(usernames()), tc.draw(timestamps()));
+        let name = tc.draw(usernames());
+        let created = tc.draw(timestamps());
+        let user = User::new(name, created);
 
         let mut rng = StdRng::seed_from_u64(user.seed);
         let mut reference: Vec<String> = (0..NUM_PASSWORDS)
@@ -269,13 +277,17 @@ mod tests {
 
     #[hegel::test(test_cases = 12)]
     fn passwords_are_deterministic(tc: hegel::TestCase) {
-        let user = User::new(tc.draw(usernames()), tc.draw(timestamps()));
+        let name = tc.draw(usernames());
+        let created = tc.draw(timestamps());
+        let user = User::new(name, created);
         assert_eq!(user.passwords(), user.passwords());
     }
 
     #[hegel::test(test_cases = 12)]
     fn secret_is_never_in_the_first_15000_lines(tc: hegel::TestCase) {
-        let user = User::new(tc.draw(usernames()), tc.draw(timestamps()));
+        let name = tc.draw(usernames());
+        let created = tc.draw(timestamps());
+        let user = User::new(name, created);
         let index = user
             .passwords()
             .lines()
@@ -297,7 +309,9 @@ mod tests {
 
     #[hegel::test]
     fn secret_is_32_alphanumeric_chars(tc: hegel::TestCase) {
-        let user = User::new(tc.draw(usernames()), tc.draw(timestamps()));
+        let name = tc.draw(usernames());
+        let created = tc.draw(timestamps());
+        let user = User::new(name, created);
         assert_eq!(user.secret.len(), PASS_LEN);
         assert!(user.secret.chars().all(|c| c.is_ascii_alphanumeric()));
     }
@@ -314,7 +328,9 @@ mod tests {
 
     #[hegel::test]
     fn wrong_checks_count_but_never_solve(tc: hegel::TestCase) {
-        let mut user = User::new(tc.draw(usernames()), tc.draw(timestamps()));
+        let name = tc.draw(usernames());
+        let created = tc.draw(timestamps());
+        let mut user = User::new(name, created);
         let attempts = tc.draw(generators::integers::<u64>().max_value(20));
         let wrong = wrong_guess(&user.secret);
         for _ in 0..attempts {
@@ -328,7 +344,9 @@ mod tests {
     // password and the challenge stays unsolved until it is confirmed.
     #[hegel::test]
     fn correct_checks_report_true_but_never_solve(tc: hegel::TestCase) {
-        let mut user = User::new(tc.draw(usernames()), tc.draw(timestamps()));
+        let name = tc.draw(usernames());
+        let created = tc.draw(timestamps());
+        let mut user = User::new(name, created);
         let secret = user.secret.clone();
         let hits = tc.draw(generators::integers::<u64>().min_value(1).max_value(20));
         for _ in 0..hits {
@@ -344,7 +362,8 @@ mod tests {
     #[hegel::test]
     fn correct_confirm_solves_once_and_records_the_completion(tc: hegel::TestCase) {
         let created = tc.draw(timestamps());
-        let mut user = User::new(tc.draw(usernames()), created);
+        let name = tc.draw(usernames());
+        let mut user = User::new(name, created);
         let secret = user.secret.clone();
         let wrong = wrong_guess(&secret);
 
@@ -400,7 +419,8 @@ mod tests {
     #[hegel::test]
     fn confirms_within_the_cooldown_are_throttled_and_uncounted(tc: hegel::TestCase) {
         let created = tc.draw(timestamps());
-        let mut user = User::new(tc.draw(usernames()), created);
+        let name = tc.draw(usernames());
+        let mut user = User::new(name, created);
         let secret = user.secret.clone();
         let wrong = wrong_guess(&secret);
 
@@ -428,7 +448,8 @@ mod tests {
     #[hegel::test]
     fn confirms_with_a_rewound_clock_are_throttled(tc: hegel::TestCase) {
         let created = tc.draw(timestamps());
-        let mut user = User::new(tc.draw(usernames()), created);
+        let name = tc.draw(usernames());
+        let mut user = User::new(name, created);
         let secret = user.secret.clone();
         let wrong = wrong_guess(&secret);
 
@@ -455,13 +476,15 @@ mod tests {
     #[hegel::test]
     fn interleaved_wrong_guesses_each_count_once(tc: hegel::TestCase) {
         let created = tc.draw(timestamps());
-        let mut user = User::new(tc.draw(usernames()), created);
+        let name = tc.draw(usernames());
+        let mut user = User::new(name, created);
         let wrong = wrong_guess(&user.secret);
 
         let guesses = tc.draw(generators::integers::<u64>().max_value(20));
         let mut now = created;
         for _ in 0..guesses {
-            if tc.draw(generators::booleans()) {
+            let is_check = tc.draw(generators::booleans());
+            if is_check {
                 assert!(!user.record_check(&wrong));
             } else {
                 let gap = tc.draw(generators::integers::<i64>().min_value(10).max_value(3600));
@@ -481,7 +504,8 @@ mod tests {
     #[hegel::test]
     fn throttled_confirms_do_not_extend_the_cooldown_window(tc: hegel::TestCase) {
         let created = tc.draw(timestamps());
-        let mut user = User::new(tc.draw(usernames()), created);
+        let name = tc.draw(usernames());
+        let mut user = User::new(name, created);
         let secret = user.secret.clone();
         let wrong = wrong_guess(&secret);
 

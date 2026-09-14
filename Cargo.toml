@@ -17,7 +17,7 @@ crate-type = ["cdylib", "rlib"]
 axum = { version = "0.8", optional = true, features = ["macros"] }
 console_error_panic_hook = "0.1"
 dashmap = "6.2.1"
-jiff = { version = "0.2.35", features = ["serde"] }
+jiff = { version = "0.2.37", features = ["serde"] }
 leptos = { version = "0.8.20" }
 leptos_axum = { version = "0.8.10", optional = true }
 leptos_meta = { version = "0.8.6" }
@@ -38,10 +38,10 @@ wasm-bindgen = "=0.2.122"
 anyhow = "1.0.104"
 clap = { version = "4.6.6", features = ["derive"] }
 futures = "0.3.34"
-hegeltest = { version = "0.32.5", features = ["jiff"] }
+hegeltest = { version = "0.44.1", features = ["jiff"] }
 indicatif = "0.18.6"
 mime = "0.3.17"
-reqwest = "0.13.4"
+reqwest = "0.13.5"
 tempfile = "3.27.0"
 tokio = { version = "1", features = ["full"] }
 tracing = "0.1"
