@@ -90,10 +90,10 @@ just run
 An example, fairly optimal but succinct solution can be found in the `examples/` directory.
 It uses `tokio` and `reqwest` to run up to 256 requests concurrently (via `buffer_unordered`), and streams the password list from stdin line by line, so only the in-flight passwords are held in memory no matter how large the file is.
 
-Modify the source code as needed (e.g., to change the username or hostname for the URLs), then you can run it with
+Pass the username and the challenge's hostname, then pipe in a password list:
 
 ```
-cargo run --release --example=passwords < /path/to/your/passwords.txt
+cargo run --release --example=passwords -- -u <username> -H http://localhost:3000 < /path/to/your/passwords.txt
 ```
 
 ## Benchmarks

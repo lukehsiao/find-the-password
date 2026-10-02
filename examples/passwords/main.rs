@@ -20,7 +20,7 @@ struct Cli {
 
     #[expect(clippy::doc_markdown)]
     /// The hostname for the challenge, e.g. (http://localhost:3000).
-    #[arg(short, long)]
+    #[arg(short = 'H', long)]
     hostname: Url,
 }
 
