@@ -2,15 +2,17 @@
 
 use topcoat::router::{HeaderMap, Method, Router, StatusCode, header, request::Request, to_bytes};
 
-use crate::{router, store::ChallengeStore};
+use crate::{clock::Clock, router, store::ChallengeStore};
 
-/// The production router over a fresh store, driven without a socket.
+/// The production router over a fresh store and a nulled clock, driven
+/// without a socket.
 ///
-/// Tests seed and inspect state through `store` and exercise it over HTTP
-/// through the request helpers.
+/// Tests seed and inspect state through `store`, move time with `clock`,
+/// and exercise it all over HTTP through the request helpers.
 pub(crate) struct TestApp {
     router: Router,
     pub(crate) store: ChallengeStore,
+    pub(crate) clock: Clock,
 }
 
 /// A buffered response.
@@ -34,9 +36,11 @@ impl Reply {
 impl TestApp {
     pub(crate) fn new() -> Self {
         let store = ChallengeStore::new();
+        let clock = Clock::null();
         Self {
-            router: router(store.clone()),
+            router: router(store.clone(), clock.clone()),
             store,
+            clock,
         }
     }
 

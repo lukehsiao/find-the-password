@@ -72,7 +72,6 @@ pub async fn passwords_txt(cx: &Cx) -> Result<String> {
 // oracle.
 #[cfg(test)]
 mod tests {
-    use jiff::Timestamp;
     use topcoat::router::{StatusCode, header};
 
     use crate::testing::TestApp;
@@ -103,7 +102,7 @@ mod tests {
     #[tokio::test]
     async fn wrong_password_returns_false() {
         let app = TestApp::new();
-        app.store.add_user("alice", Timestamp::now()).unwrap();
+        app.store.add_user("alice", app.clock.now()).unwrap();
         let reply = app.get("/u/alice/check/definitely-wrong").await;
         assert_eq!(reply.status, StatusCode::OK);
         assert_eq!(reply.body, "false");
@@ -112,7 +111,7 @@ mod tests {
     #[tokio::test]
     async fn correct_password_returns_true() {
         let app = TestApp::new();
-        app.store.add_user("bob", Timestamp::now()).unwrap();
+        app.store.add_user("bob", app.clock.now()).unwrap();
         let secret = app.store.get_user("bob").unwrap().secret;
         let reply = app.get(&format!("/u/bob/check/{secret}")).await;
         assert_eq!(reply.status, StatusCode::OK);
@@ -124,7 +123,7 @@ mod tests {
     #[tokio::test]
     async fn correct_check_does_not_solve() {
         let app = TestApp::new();
-        app.store.add_user("dave", Timestamp::now()).unwrap();
+        app.store.add_user("dave", app.clock.now()).unwrap();
         let secret = app.store.get_user("dave").unwrap().secret;
 
         for _ in 0..2 {
@@ -140,7 +139,7 @@ mod tests {
     #[tokio::test]
     async fn passwords_download_matches_store() {
         let app = TestApp::new();
-        app.store.add_user("carol", Timestamp::now()).unwrap();
+        app.store.add_user("carol", app.clock.now()).unwrap();
         let expected = app.store.passwords("carol").unwrap();
         let reply = app.get("/u/carol/passwords.txt").await;
         assert_eq!(reply.status, StatusCode::OK);

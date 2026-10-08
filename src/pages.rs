@@ -6,7 +6,7 @@
 //! with 303 See Other; a mistake re-renders the same page with the error
 //! message and a 4xx status.
 
-use jiff::{Span, SpanRound, Timestamp, Unit};
+use jiff::{Span, SpanRound, Unit};
 use serde::Deserialize;
 use topcoat::{
     Result,
@@ -22,7 +22,7 @@ use topcoat::{
 };
 
 use crate::{
-    Username,
+    Username, clock,
     error::AppError,
     store,
     store::ConfirmOutcome,
@@ -73,7 +73,7 @@ pub async fn home() -> Result<impl View> {
 /// Register a player, then send them to their page.
 #[page(POST "/")]
 pub async fn join(cx: &Cx, Form(form): Form<JoinForm>) -> Result<impl View> {
-    match store(cx).add_user(&form.username, Timestamp::now()) {
+    match store(cx).add_user(&form.username, clock(cx).now()) {
         Ok(()) => Err(see_other(href!(player, Username(&form.username)).resolve(cx)).into()),
         Err(error) => Ok(view! {
             (error.status())
@@ -96,7 +96,7 @@ pub async fn player(cx: &Cx) -> Result<impl View> {
 #[page(POST "/u/{username}")]
 pub async fn confirm(cx: &Cx, Form(form): Form<ConfirmForm>) -> Result<impl View> {
     let username = path_param::<Username>(cx);
-    let error = match store(cx).confirm(username, &form.password, Timestamp::now()) {
+    let error = match store(cx).confirm(username, &form.password, clock(cx).now()) {
         ConfirmOutcome::NotFound => return Err(not_found().into()),
         ConfirmOutcome::Confirmed => {
             return Err(see_other(href!(player, Username(username)).resolve(cx)).into());
@@ -358,7 +358,7 @@ async fn player_body(user: User, #[default] error: Option<AppError>) -> Result<i
 // statuses a rejected form re-renders with.
 #[cfg(test)]
 mod tests {
-    use jiff::Timestamp;
+    use jiff::SignedDuration;
     use topcoat::router::{StatusCode, header};
 
     use crate::testing::TestApp;
@@ -390,7 +390,7 @@ mod tests {
     #[tokio::test]
     async fn joining_with_a_taken_name_is_409() {
         let app = TestApp::new();
-        app.store.add_user("alice", Timestamp::now()).unwrap();
+        app.store.add_user("alice", app.clock.now()).unwrap();
         let reply = app.post_form("/", "username=alice").await;
         assert_eq!(reply.status, StatusCode::CONFLICT);
         assert!(reply.body.contains("That username is already taken."));
@@ -412,7 +412,7 @@ mod tests {
     #[tokio::test]
     async fn confirming_maps_mistakes_to_4xx() {
         let app = TestApp::new();
-        app.store.add_user("alice", Timestamp::now()).unwrap();
+        app.store.add_user("alice", app.clock.now()).unwrap();
 
         let reply = app.post_form("/u/alice", "password=wrong").await;
         assert_eq!(reply.status, StatusCode::UNPROCESSABLE_ENTITY);
@@ -433,7 +433,7 @@ mod tests {
     #[tokio::test]
     async fn confirming_the_password_solves_and_redirects() {
         let app = TestApp::new();
-        app.store.add_user("bob", Timestamp::now()).unwrap();
+        app.store.add_user("bob", app.clock.now()).unwrap();
         let secret = app.store.get_user("bob").unwrap().secret;
 
         let reply = app.post_form("/u/bob", &format!("password={secret}")).await;
@@ -446,13 +446,53 @@ mod tests {
         assert!(!page.body.contains("Confirm password"));
     }
 
+    // Retry-After is a promise: waiting exactly that long gets the next
+    // confirmation evaluated.
+    #[tokio::test]
+    async fn a_throttled_confirmation_is_evaluated_after_retry_after() {
+        let app = TestApp::new();
+        app.store.add_user("alice", app.clock.now()).unwrap();
+        let secret = app.store.get_user("alice").unwrap().secret;
+        app.post_form("/u/alice", "password=wrong").await;
+
+        let throttled = app
+            .post_form("/u/alice", &format!("password={secret}"))
+            .await;
+        assert_eq!(throttled.status, StatusCode::TOO_MANY_REQUESTS);
+        let wait: i64 = throttled.header(&header::RETRY_AFTER).parse().unwrap();
+
+        app.clock.advance(SignedDuration::from_secs(wait));
+        let reply = app
+            .post_form("/u/alice", &format!("password={secret}"))
+            .await;
+        assert_eq!(reply.status, StatusCode::SEE_OTHER);
+    }
+
+    #[tokio::test]
+    async fn the_solve_time_runs_from_joining_to_confirming() {
+        let app = TestApp::new();
+        app.post_form("/", "username=eve").await;
+        let secret = app.store.get_user("eve").unwrap().secret;
+
+        app.clock.advance(SignedDuration::from_secs(90));
+        app.post_form("/u/eve", &format!("password={secret}")).await;
+
+        let page = app.get("/u/eve").await.body;
+        assert!(
+            page.contains("You confirmed the password after 1m 30s"),
+            "{page}"
+        );
+        let home = app.get("/").await.body;
+        assert!(home.contains("<td>eve</td><td>1m 30s</td>"), "{home}");
+    }
+
     #[tokio::test]
     async fn the_home_page_lists_every_player_and_the_leaderboard() {
         let app = TestApp::new();
-        app.store.add_user("solver", Timestamp::now()).unwrap();
-        app.store.add_user("grinder", Timestamp::now()).unwrap();
+        app.store.add_user("solver", app.clock.now()).unwrap();
+        app.store.add_user("grinder", app.clock.now()).unwrap();
         let secret = app.store.get_user("solver").unwrap().secret;
-        app.store.confirm("solver", &secret, Timestamp::now());
+        app.store.confirm("solver", &secret, app.clock.now());
         for _ in 0..3 {
             app.store.check("grinder", "wrong");
         }

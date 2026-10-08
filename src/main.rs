@@ -3,7 +3,7 @@ use std::{env, io};
 use tracing::info;
 use tracing_subscriber::{EnvFilter, layer::SubscriberExt, util::SubscriberInitExt};
 
-use challenge::{listener::ChallengeListener, router, store::ChallengeStore};
+use challenge::{clock::Clock, listener::ChallengeListener, router, store::ChallengeStore};
 
 // Per-request allocations live mostly in hyper and the topcoat router;
 // mimalloc serves those faster than the system allocator.
@@ -33,5 +33,5 @@ async fn main() -> io::Result<()> {
     let listener = ChallengeListener::bind((host.as_str(), port)).await?;
     info!("listening on http://{}", listener.local_addr()?);
     // Ctrl+C or SIGTERM drains in-flight requests before exiting.
-    topcoat::serve(listener, router(ChallengeStore::new())).await
+    topcoat::serve(listener, router(ChallengeStore::new(), Clock::system())).await
 }

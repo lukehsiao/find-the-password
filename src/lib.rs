@@ -1,3 +1,4 @@
+pub mod clock;
 pub mod error;
 pub mod http;
 pub mod listener;
@@ -12,18 +13,19 @@ use topcoat::{
     router::{Router, path_param},
 };
 
-use crate::store::ChallengeStore;
+use crate::{clock::Clock, store::ChallengeStore};
 
 // The `{username}` segment shared by every per-player URL, pages and the
 // plain-text routes alike.
 path_param!(pub username);
 
 /// The whole application: the pages players click through plus the
-/// plain-text routes their scripts hit, all backed by `store`.
+/// plain-text routes their scripts hit, all backed by `store` and stamped
+/// with `clock`.
 ///
 /// Every route is registered here by hand, so this function is the full
 /// URL contract in one place.
-pub fn router(store: ChallengeStore) -> Router {
+pub fn router(store: ChallengeStore, clock: Clock) -> Router {
     Router::builder()
         .layout(pages::layout)
         .page(pages::home)
@@ -36,10 +38,16 @@ pub fn router(store: ChallengeStore) -> Router {
         .route(http::robots_txt)
         .route(http::favicon)
         .app_context(store)
+        .app_context(clock)
         .build()
 }
 
 /// The store every handler reads and writes.
 fn store(cx: &Cx) -> &ChallengeStore {
+    app_context(cx)
+}
+
+/// The clock every handler stamps state changes with.
+fn clock(cx: &Cx) -> &Clock {
     app_context(cx)
 }
