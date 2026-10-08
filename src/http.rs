@@ -72,6 +72,9 @@ pub async fn passwords_txt(cx: &Cx) -> Result<String> {
 // oracle.
 #[cfg(test)]
 mod tests {
+    use std::io::Read;
+
+    use flate2::read::GzDecoder;
     use hegel::generators;
     use topcoat::router::{StatusCode, header};
 
@@ -150,6 +153,24 @@ mod tests {
         );
         assert_eq!(reply.body, expected);
         assert_eq!(reply.body.lines().count(), 60_000);
+    }
+
+    // The file is 2MB and players download it over school wifi, so it must
+    // go out compressed to any client that asks, and decode to the same
+    // bytes.
+    #[tokio::test]
+    async fn passwords_download_is_gzipped_when_accepted() {
+        let app = TestApp::new();
+        app.store.add_user("carol", app.clock.now()).unwrap();
+        let (headers, body) = app.get_encoded("/u/carol/passwords.txt", "gzip").await;
+        assert_eq!(headers[header::CONTENT_ENCODING], "gzip");
+
+        let mut decoded = String::new();
+        GzDecoder::new(&body[..])
+            .read_to_string(&mut decoded)
+            .unwrap();
+        assert_eq!(decoded, app.store.passwords("carol").unwrap());
+        assert!(body.len() < decoded.len());
     }
 
     #[tokio::test]

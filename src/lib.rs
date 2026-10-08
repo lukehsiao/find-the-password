@@ -10,7 +10,7 @@ pub mod user;
 
 use topcoat::{
     context::{Cx, app_context},
-    router::{Router, path_param},
+    router::{Compression, CompressionLevel, Router, path_param},
 };
 
 use crate::{clock::Clock, store::ChallengeStore};
@@ -39,6 +39,11 @@ pub fn router(store: ChallengeStore, clock: Clock) -> Router {
         .route(http::favicon)
         .app_context(store)
         .app_context(clock)
+        // The only response big enough to matter is passwords.txt, 2MB of
+        // random base62 that compresses about 25% at any level. The default
+        // level spends 4x the CPU of Fastest on gzip and 2x on brotli, for
+        // output at most 1.5% smaller.
+        .compression(Compression::new().level(CompressionLevel::Fastest))
         .build()
 }
 

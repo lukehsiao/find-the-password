@@ -1,6 +1,10 @@
 //! In-process HTTP harness shared by the route and page tests.
 
-use topcoat::router::{HeaderMap, Method, Router, StatusCode, header, request::Request, to_bytes};
+use topcoat::router::{
+    HeaderMap, Method, Router, StatusCode, header,
+    request::{Bytes, Request},
+    to_bytes,
+};
 
 use crate::{clock::Clock, router, store::ChallengeStore};
 
@@ -61,15 +65,31 @@ impl TestApp {
         self.send(request).await
     }
 
+    /// GET `uri` accepting `encoding`, returning the headers and the body
+    /// bytes exactly as they would go out on the wire.
+    pub(crate) async fn get_encoded(&self, uri: &str, encoding: &str) -> (HeaderMap, Bytes) {
+        let request = Request::builder()
+            .uri(uri)
+            .header(header::ACCEPT_ENCODING, encoding)
+            .body(().into())
+            .unwrap();
+        let (_, headers, body) = self.send_raw(request).await;
+        (headers, body)
+    }
+
     async fn send(&self, request: Request) -> Reply {
-        let response = self.router.handle(request).await;
-        let (parts, body) = response.into_parts();
-        let body = to_bytes(body, usize::MAX).await.unwrap();
+        let (status, headers, body) = self.send_raw(request).await;
         Reply {
-            status: parts.status,
-            headers: parts.headers,
+            status,
+            headers,
             body: String::from_utf8(body.to_vec()).unwrap(),
         }
+    }
+
+    async fn send_raw(&self, request: Request) -> (StatusCode, HeaderMap, Bytes) {
+        let (parts, body) = self.router.handle(request).await.into_parts();
+        let body = to_bytes(body, usize::MAX).await.unwrap();
+        (parts.status, parts.headers, body)
     }
 }
 
