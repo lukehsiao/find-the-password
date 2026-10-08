@@ -1,14 +1,25 @@
-use axum::{
-    extract::{Path, RawPathParams, State},
-    http::StatusCode,
-    response::{IntoResponse, Response},
+//! The plain-text routes that players' scripts depend on, plus the
+//! operational endpoints.
+
+use topcoat::{
+    Result,
+    context::Cx,
+    router::{
+        HeaderName, HeaderValue, StatusCode,
+        error::{RouterErrorExt, not_found},
+        header::CONTENT_TYPE,
+        path_param, route,
+    },
 };
 
-use crate::store::{ChallengeStore, CheckOutcome};
+use crate::{Username, store, store::CheckOutcome};
+
+path_param!(password);
 
 /// Simple healthcheck endpoint.
-pub async fn healthcheck() -> impl IntoResponse {
-    StatusCode::OK
+#[route(GET "/up")]
+pub async fn healthcheck() -> Result<StatusCode> {
+    Ok(StatusCode::OK)
 }
 
 /// Tell every crawler to stay away from every page.
@@ -17,48 +28,133 @@ pub async fn healthcheck() -> impl IntoResponse {
 /// downloads are noise no search index should surface. A `&'static str`
 /// response already carries `text/plain; charset=utf-8`, which is what
 /// robots.txt requires.
-pub async fn robots_txt() -> &'static str {
-    "User-agent: *\nDisallow: /\n"
+#[route(GET "/robots.txt")]
+pub async fn robots_txt() -> Result<&'static str> {
+    Ok("User-agent: *\nDisallow: /\n")
+}
+
+/// The site icon, compiled into the binary so the server is one file.
+#[route(GET "/favicon.ico")]
+pub async fn favicon() -> Result<([(HeaderName, HeaderValue); 1], &'static [u8])> {
+    Ok((
+        [(CONTENT_TYPE, HeaderValue::from_static("image/x-icon"))],
+        include_bytes!("../public/favicon.ico"),
+    ))
 }
 
 /// Check a password for correctness.
 ///
 /// The literal `true`/`false` bodies and the 200/404 statuses are the
 /// contract that players' scripts depend on.
-pub async fn check_password(
-    params: RawPathParams,
-    State(store): State<ChallengeStore>,
-) -> Response {
-    // RawPathParams borrows the captures the router already decoded,
-    // skipping the two String allocations Path<(String, String)> would
-    // make on the hottest route in the app.
-    let mut username = None;
-    let mut password = None;
-    for (name, value) in &params {
-        match name {
-            "username" => username = Some(value),
-            "password" => password = Some(value),
-            _ => {}
-        }
-    }
-    let (Some(username), Some(password)) = (username, password) else {
-        // The route template guarantees both captures; stay graceful anyway.
-        return StatusCode::NOT_FOUND.into_response();
-    };
-    match store.check(username, password) {
-        CheckOutcome::NotFound => StatusCode::NOT_FOUND.into_response(),
-        CheckOutcome::Incorrect => (StatusCode::OK, "false").into_response(),
-        CheckOutcome::Correct => (StatusCode::OK, "true").into_response(),
+#[route(GET "/u/{username}/check/{password}")]
+pub async fn check_password(cx: &Cx) -> Result<&'static str> {
+    // Unparsed path parameters borrow the router's decoded captures, so the
+    // hottest route in the app allocates nothing of its own.
+    match store(cx).check(path_param::<Username>(cx), path_param::<Password>(cx)) {
+        CheckOutcome::NotFound => Err(not_found().into()),
+        CheckOutcome::Incorrect => Ok("false"),
+        CheckOutcome::Correct => Ok("true"),
     }
 }
 
 /// Produce passwords.txt for a user.
-pub async fn get_passwords(
-    Path(username): Path<String>,
-    State(store): State<ChallengeStore>,
-) -> Response {
-    match store.passwords(&username) {
-        None => StatusCode::NOT_FOUND.into_response(),
-        Some(passwords) => (StatusCode::OK, passwords).into_response(),
+#[route(GET "/u/{username}/passwords.txt")]
+pub async fn passwords_txt(cx: &Cx) -> Result<String> {
+    Ok(store(cx)
+        .passwords(path_param::<Username>(cx))
+        .ok_or_not_found()?)
+}
+
+// The kid-facing HTTP contract, driven through the production router. These
+// lock the exact responses players' scripts depend on: literal `true`/`false`
+// bodies, 200/404 statuses, and a byte-for-byte passwords.txt. In-crate so
+// they can read the crate-private `User::secret` as the correct-password
+// oracle.
+#[cfg(test)]
+mod tests {
+    use jiff::Timestamp;
+    use topcoat::router::{StatusCode, header};
+
+    use crate::testing::TestApp;
+
+    #[tokio::test]
+    async fn healthcheck_returns_200() {
+        let app = TestApp::new();
+        assert_eq!(app.get("/up").await.status, StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn robots_txt_disallows_all_crawlers() {
+        let reply = TestApp::new().get("/robots.txt").await;
+        assert_eq!(reply.status, StatusCode::OK);
+        assert_eq!(
+            reply.header(&header::CONTENT_TYPE),
+            "text/plain; charset=utf-8"
+        );
+        assert_eq!(reply.body, "User-agent: *\nDisallow: /\n");
+    }
+
+    #[tokio::test]
+    async fn check_for_unknown_user_is_404() {
+        let reply = TestApp::new().get("/u/ghost/check/whatever").await;
+        assert_eq!(reply.status, StatusCode::NOT_FOUND);
+    }
+
+    #[tokio::test]
+    async fn wrong_password_returns_false() {
+        let app = TestApp::new();
+        app.store.add_user("alice", Timestamp::now()).unwrap();
+        let reply = app.get("/u/alice/check/definitely-wrong").await;
+        assert_eq!(reply.status, StatusCode::OK);
+        assert_eq!(reply.body, "false");
+    }
+
+    #[tokio::test]
+    async fn correct_password_returns_true() {
+        let app = TestApp::new();
+        app.store.add_user("bob", Timestamp::now()).unwrap();
+        let secret = app.store.get_user("bob").unwrap().secret;
+        let reply = app.get(&format!("/u/bob/check/{secret}")).await;
+        assert_eq!(reply.status, StatusCode::OK);
+        assert_eq!(reply.body, "true");
+    }
+
+    // Locks the confirm-flow contract: the check URL reads true but never
+    // solves, no matter how often the correct password goes past.
+    #[tokio::test]
+    async fn correct_check_does_not_solve() {
+        let app = TestApp::new();
+        app.store.add_user("dave", Timestamp::now()).unwrap();
+        let secret = app.store.get_user("dave").unwrap().secret;
+
+        for _ in 0..2 {
+            let reply = app.get(&format!("/u/dave/check/{secret}")).await;
+            assert_eq!(reply.status, StatusCode::OK);
+            assert_eq!(reply.body, "true");
+        }
+
+        assert!(app.store.get_user("dave").unwrap().solved_at.is_none());
+        assert!(app.store.leaders().is_empty());
+    }
+
+    #[tokio::test]
+    async fn passwords_download_matches_store() {
+        let app = TestApp::new();
+        app.store.add_user("carol", Timestamp::now()).unwrap();
+        let expected = app.store.passwords("carol").unwrap();
+        let reply = app.get("/u/carol/passwords.txt").await;
+        assert_eq!(reply.status, StatusCode::OK);
+        assert_eq!(
+            reply.header(&header::CONTENT_TYPE),
+            "text/plain; charset=utf-8"
+        );
+        assert_eq!(reply.body, expected);
+        assert_eq!(reply.body.lines().count(), 60_000);
+    }
+
+    #[tokio::test]
+    async fn passwords_for_unknown_user_is_404() {
+        let reply = TestApp::new().get("/u/ghost/passwords.txt").await;
+        assert_eq!(reply.status, StatusCode::NOT_FOUND);
     }
 }

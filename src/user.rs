@@ -2,7 +2,6 @@ use std::hash::{DefaultHasher, Hash, Hasher};
 
 use jiff::{SignedDuration, Span, Timestamp};
 use rand::{RngExt, SeedableRng, distr::Alphanumeric, rngs::StdRng};
-use serde::{Deserialize, Serialize};
 
 const NUM_PASSWORDS: usize = 60_000;
 const PASS_LEN: usize = 32;
@@ -19,28 +18,23 @@ const OFFSET: usize = 15_000;
 pub(crate) const CONFIRM_COOLDOWN: SignedDuration = SignedDuration::from_secs(10);
 
 /// Defines all of the state we keep for a particular user.
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Clone, Debug)]
 pub struct User {
     pub username: String,
     pub created_at: Timestamp,
     pub solved_at: Option<Timestamp>,
     pub hits_before_solved: u64,
-    // Never serialized: `get_user` sends User to the client, and the seed
-    // and secret must not leak to the browser. Visibility is restricted to
-    // match: seed is module-private, and the secret is readable only within
-    // the crate (the store and the in-crate tests).
-    #[serde(skip)]
+    // The seed is module-private, and the secret is readable only within
+    // the crate (the store and the in-crate tests): nothing outside may
+    // learn the answer.
     seed: u64,
-    #[serde(skip)]
     pub(crate) secret: String,
     // When the last evaluated confirmation happened; gates the cooldown.
-    // Server-side bookkeeping only, so it is never serialized either.
-    #[serde(skip)]
     last_confirm_at: Option<Timestamp>,
 }
 
 /// Represents an entry in the leaderboard
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Debug, Clone)]
 pub struct Completion {
     pub username: String,
     pub time_to_solve: Span,
@@ -48,7 +42,7 @@ pub struct Completion {
 }
 
 /// One row in the homepage roster of all registered players.
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RosterEntry {
     pub username: String,
     pub attempts: u64,

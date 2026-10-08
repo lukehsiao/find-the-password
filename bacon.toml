@@ -85,7 +85,7 @@ background = true
 # a binding `r = job:run-long` at the end of this file .
 [jobs.run-long]
 command = [
-    "cargo", "leptos", "watch",
+    "cargo", "run",
     # put launch parameters for your program behind a `--` separator
 ]
 need_stdout = true

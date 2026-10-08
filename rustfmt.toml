@@ -1,0 +1,3 @@
+# `topcoat fmt --rustfmt` pipes source through rustfmt, which then cannot
+# read the edition from Cargo.toml.
+edition = "2024"

@@ -8,7 +8,8 @@
 [tools]
 node = "24"
 pnpm = "latest"
-"cargo:cargo-leptos" = "latest"
+# Keep in lockstep with the topcoat dependency in Cargo.toml.
+"cargo:topcoat-cli" = "0.10.0"
 just = "latest"
 
 [env]

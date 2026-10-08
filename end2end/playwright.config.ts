@@ -89,9 +89,15 @@ export default defineConfig({
   /* Folder for test artifacts such as screenshots, videos, traces, etc. */
   // outputDir: 'test-results/',
 
-  /* Run your local dev server before starting the tests */
-  // webServer: {
-  //   command: 'npm run start',
-  //   port: 3000,
-  // },
+  /* Build and start the app before the tests; reuse one already running locally. */
+  webServer: {
+    command: "cargo run --locked",
+    cwd: "..",
+    env: { HOST: "127.0.0.1", PORT: "3000" },
+    url: "http://localhost:3000/up",
+    reuseExistingServer: !process.env.CI,
+    // A cold CI cache compiles the whole dependency tree first, which takes
+    // a few minutes; Playwright's 60 s default would give up mid-build.
+    timeout: 10 * 60 * 1000,
+  },
 });

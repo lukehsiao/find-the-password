@@ -57,12 +57,11 @@ docker run -d -p 8080:8080 --name find-the-password ghcr.io/lukehsiao/find-the-p
 
 ### Prerequisites
 
-This project assumes you have all the tooling for Leptos installed.
-Specifically, make sure you have the [tooling specified here](https://book.leptos.dev/ssr/21_cargo_leptos.html?highlight=cargo-lept#introducing-cargo-leptos).
+The server is a plain Rust binary built on [Topcoat](https://github.com/tokio-rs/topcoat), so a Rust 1.98+ toolchain is all it needs.
+For live reload while editing and for formatting `view!` macros, also install the Topcoat CLI:
 
 ```
-cargo install cargo-leptos
-rustup target add wasm32-unknown-unknown
+cargo install topcoat-cli --version 0.10.0 --locked
 ```
 
 ### Building
@@ -79,10 +78,13 @@ just build
 ### Running
 
 While we could add a Dockerfile or similar to this project, I typically just run it directly on a server.
+The stylesheet and favicon are compiled in, so the binary is the whole app.
+It listens on `HOST`:`PORT` (default `127.0.0.1:3000`).
 To make this easier, see
 
 ```
-just run
+just run          # the release binary from `just build`, on 0.0.0.0:3000
+just dev          # topcoat dev: rebuilds and reloads the page on save
 ```
 
 ## Example Solution
@@ -153,20 +155,20 @@ So, as long as there isn't a huge group of kids trying at a given time, it is li
 
 ## Testing
 
-Domain logic and the store have [property-based tests](https://hegel.dev/) (`just test`), and `tests/http.rs` drives the real router to lock the HTTP contract that solver scripts rely on.
+Domain logic and the store have [property-based tests](https://hegel.dev/) (`just test`), and the route and page tests drive the real router in-process to lock the HTTP contract that solver scripts rely on.
 
 ```
 just test       # cargo nextest run
 just coverage   # cargo llvm-cov nextest
 ```
 
-End-to-end tests live in `end2end/` and run against a live server via Playwright (`cargo leptos end-to-end`).
+End-to-end tests live in `end2end/` and run against a live server via Playwright (`just e2e`), which builds and starts the app itself.
 Playwright has no official Arch build, so locally the tests use the system Chromium instead of Playwright's fragile fallback download.
 With [`mise`](https://mise.jdx.dev/) and `chromium` installed, the whole thing is one command:
 
 ```
 sudo pacman -S chromium   # once
-mise run e2e              # pnpm install, then cargo leptos end-to-end
+mise run e2e              # pnpm install, then just e2e
 ```
 
 `mise.toml` sets `PLAYWRIGHT_CHROMIUM_PATH=/usr/bin/chromium` and skips the browser download.

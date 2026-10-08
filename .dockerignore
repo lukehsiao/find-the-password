@@ -9,7 +9,6 @@ examples/
 .git/
 .github/
 node_modules/
-pkg
 playwright/.cache/
 **/*.rs.bk
 rust-analyzer.toml

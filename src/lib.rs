@@ -1,20 +1,45 @@
-pub mod app;
 pub mod error;
-#[cfg(feature = "ssr")]
 pub mod http;
-#[cfg(feature = "ssr")]
-pub mod router;
-#[cfg(feature = "ssr")]
-pub mod state;
-#[cfg(feature = "ssr")]
+pub mod listener;
+pub mod pages;
 pub mod store;
+#[cfg(test)]
+mod testing;
 pub mod user;
 
-#[cfg(feature = "hydrate")]
-#[wasm_bindgen::prelude::wasm_bindgen]
-pub fn hydrate() {
-    use crate::app::App;
-    use leptos::mount::hydrate_body;
-    console_error_panic_hook::set_once();
-    hydrate_body(App);
+use topcoat::{
+    context::{Cx, app_context},
+    router::{Router, path_param},
+};
+
+use crate::store::ChallengeStore;
+
+// The `{username}` segment shared by every per-player URL, pages and the
+// plain-text routes alike.
+path_param!(pub username);
+
+/// The whole application: the pages players click through plus the
+/// plain-text routes their scripts hit, all backed by `store`.
+///
+/// Every route is registered here by hand, so this function is the full
+/// URL contract in one place.
+pub fn router(store: ChallengeStore) -> Router {
+    Router::builder()
+        .layout(pages::layout)
+        .page(pages::home)
+        .page(pages::join)
+        .page(pages::player)
+        .page(pages::confirm)
+        .route(http::check_password)
+        .route(http::passwords_txt)
+        .route(http::healthcheck)
+        .route(http::robots_txt)
+        .route(http::favicon)
+        .app_context(store)
+        .build()
+}
+
+/// The store every handler reads and writes.
+fn store(cx: &Cx) -> &ChallengeStore {
+    app_context(cx)
 }

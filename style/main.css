@@ -2,8 +2,8 @@
  * Flexoki color override for water.css.
  *
  * water.css exposes its palette as custom properties. This file only
- * redefines those properties; cargo-leptos compiles it into challenge.css,
- * which the app loads after water.css, so these values win the cascade.
+ * redefines those properties; the layout inlines it after the water.css
+ * link, so these values win the cascade.
  * Light values live in :root and dark values in the media block, mirroring
  * water.css's own structure so light colors don't leak into dark mode.
  *
@@ -59,10 +59,10 @@
 
 body {
   font-family: Atkinson Hyperlegible, -apple-system, BlinkMacSystemFont, avenir next, avenir, segoe ui, helvetica neue, helvetica, Cantarell, Ubuntu, roboto, noto, arial, sans-serif;
+}
 
-  code {
-    font-family: Berkeley Mono, Menlo, Consolas, Monaco, Liberation Mono, Lucida Console, monospace;
-  }
+body code {
+  font-family: Berkeley Mono, Menlo, Consolas, Monaco, Liberation Mono, Lucida Console, monospace;
 }
 
 .error p {

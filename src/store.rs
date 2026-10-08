@@ -29,8 +29,8 @@ pub enum ConfirmOutcome {
 
 /// In-memory store of all challenge state.
 ///
-/// This is the one interface over the user map and the leaderboard; handlers
-/// and server functions stay thin adapters over it. Cloning is cheap (two
+/// This is the one interface over the user map and the leaderboard; the
+/// route and page handlers stay thin adapters over it. Cloning is cheap (two
 /// `Arc`s), and constructing one is the entire test setup. Timestamps are
 /// passed in by callers so the store itself never touches the clock.
 #[derive(Debug, Clone, Default)]

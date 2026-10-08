@@ -11,7 +11,7 @@ image tag="local":
 # Runs linters on the sources
 [group('dev')]
 check:
-	cargo clippy --all-features --all-targets --locked -- -D warnings
+	cargo clippy --all-targets --locked -- -D warnings
 
 # Lint GitHub Actions workflows with zizmor
 [group('dev')]
@@ -33,29 +33,32 @@ test:
 coverage:
 	cargo llvm-cov nextest
 
-# Run the end-to-end (Playwright) tests; builds the app and starts the server
+# Run the end-to-end (Playwright) tests; Playwright builds and starts the server
 [group('dev')]
 e2e:
-	cargo leptos end-to-end
+	pnpm --dir {{justfile_directory()}}/end2end exec playwright test
+
+# Run the server with live reload while editing (needs topcoat-cli)
+[group('dev')]
+dev:
+	topcoat dev
 
 # Run the release binary
 [group('dev')]
-run addr="0.0.0.0:3000":
-	LEPTOS_SITE_ADDR={{addr}} {{justfile_directory()}}/app/challenge
+run host="0.0.0.0" port="3000":
+	HOST={{host}} PORT={{port}} {{justfile_directory()}}/app/challenge
 
 # Build the release binary
 [group('dev')]
 build:
-	cargo leptos build --release
+	cargo build --release --locked
 	mkdir -p {{justfile_directory()}}/app
 	cp {{justfile_directory()}}/target/release/challenge {{justfile_directory()}}/app/
-	cp -r {{justfile_directory()}}/target/site/* {{justfile_directory()}}/app/site
-	cp {{justfile_directory()}}/Cargo.toml {{justfile_directory()}}/app/
 
-# Format all sources, leptos-style
+# Format all sources, including view! macro bodies
 [group('dev')]
 fmt:
-	leptosfmt {{justfile_directory()}}
+	topcoat fmt --rustfmt
 
 # Sets up a watcher that lints, tests, and builds
 [group('dev')]
