@@ -358,10 +358,11 @@ async fn player_body(user: User, #[default] error: Option<AppError>) -> Result<i
 // statuses a rejected form re-renders with.
 #[cfg(test)]
 mod tests {
+    use hegel::generators;
     use jiff::SignedDuration;
     use topcoat::router::{StatusCode, header};
 
-    use crate::testing::TestApp;
+    use crate::testing::{TestApp, form};
 
     #[tokio::test]
     async fn joining_redirects_to_the_new_players_page() {
@@ -506,5 +507,89 @@ mod tests {
             "<td>grinder</td><td>no</td><td style=\"text-align: right;\"><code>3</code>"
         ));
         assert!(tables[1].contains("<td>solver</td><td>yes</td>"));
+    }
+
+    /// The text of the first `value` attribute following `name="{name}"`,
+    /// with the character references HTML allows in it decoded.
+    fn input_value(page: &str, name: &str) -> String {
+        let marker = format!(r#"name="{name}" value=""#);
+        let start = page.find(&marker).expect("input is rendered") + marker.len();
+        let raw = &page[start..start + page[start..].find('"').expect("value is quoted")];
+        let mut decoded = String::new();
+        let mut rest = raw;
+        while let Some(amp) = rest.find('&') {
+            decoded.push_str(&rest[..amp]);
+            let end = amp + rest[amp..].find(';').expect("references end with ;");
+            decoded.push(match &rest[amp + 1..end] {
+                "amp" => '&',
+                "quot" => '"',
+                "lt" => '<',
+                "gt" => '>',
+                "#39" => '\'',
+                other => panic!("unexpected character reference &{other};"),
+            });
+            rest = &rest[end + 1..];
+        }
+        decoded.push_str(rest);
+        decoded
+    }
+
+    // Whatever a player types is either registered and sent to a page that
+    // names it, or rejected with 422 and handed back intact in the form so
+    // they can fix it. The oracle is the documented rule, not the regex:
+    // 3-32 URL-unreserved ASCII characters.
+    #[tokio::test]
+    #[hegel::test]
+    async fn joining_accepts_exactly_the_documented_usernames(tc: hegel::TestCase) {
+        let app = TestApp::new();
+        let username = if tc.draw(generators::booleans()) {
+            tc.draw(generators::from_regex(r"[a-zA-Z0-9._-]{3,32}").fullmatch(true))
+        } else {
+            tc.draw(generators::text())
+        };
+        let documented = (3..=32).contains(&username.len())
+            && username
+                .bytes()
+                .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'-' | b'.' | b'_'));
+
+        let reply = app
+            .post_form("/", &form([("username", username.as_str())]))
+            .await;
+        if documented {
+            assert_eq!(reply.status, StatusCode::SEE_OTHER);
+            assert_eq!(reply.header(&header::LOCATION), format!("/u/{username}"));
+            assert!(app.store.get_user(&username).is_some());
+        } else {
+            assert_eq!(reply.status, StatusCode::UNPROCESSABLE_ENTITY);
+            assert_eq!(input_value(&reply.body, "username"), username);
+            assert_eq!(app.store.roster(), vec![]);
+        }
+    }
+
+    // Whatever is typed into the confirmation box reaches the store intact:
+    // only the secret solves.
+    #[tokio::test]
+    #[hegel::test]
+    async fn confirming_solves_exactly_for_the_secret(tc: hegel::TestCase) {
+        let app = TestApp::new();
+        app.store.add_user("alice", app.clock.now()).unwrap();
+        let secret = app.store.get_user("alice").unwrap().secret;
+        let guess = if tc.draw(generators::booleans()) {
+            secret.clone()
+        } else {
+            tc.draw(generators::text())
+        };
+
+        let reply = app
+            .post_form("/u/alice", &form([("password", guess.as_str())]))
+            .await;
+        let solved = app.store.get_user("alice").unwrap().solved_at.is_some();
+        if guess == secret {
+            assert_eq!(reply.status, StatusCode::SEE_OTHER);
+            assert!(solved);
+        } else {
+            assert_eq!(reply.status, StatusCode::UNPROCESSABLE_ENTITY);
+            assert!(!solved);
+        }
     }
 }

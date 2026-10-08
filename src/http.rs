@@ -72,9 +72,10 @@ pub async fn passwords_txt(cx: &Cx) -> Result<String> {
 // oracle.
 #[cfg(test)]
 mod tests {
+    use hegel::generators;
     use topcoat::router::{StatusCode, header};
 
-    use crate::testing::TestApp;
+    use crate::testing::{TestApp, path_segment};
 
     #[tokio::test]
     async fn healthcheck_returns_200() {
@@ -155,5 +156,28 @@ mod tests {
     async fn passwords_for_unknown_user_is_404() {
         let reply = TestApp::new().get("/u/ghost/passwords.txt").await;
         assert_eq!(reply.status, StatusCode::NOT_FOUND);
+    }
+
+    // Whatever a script puts in the password segment, percent-encoded as
+    // any HTTP client would, reaches the store decoded and intact: only the
+    // secret itself reads true, and every guess counts once.
+    #[tokio::test]
+    #[hegel::test]
+    async fn check_answers_true_exactly_for_the_secret(tc: hegel::TestCase) {
+        let app = TestApp::new();
+        app.store.add_user("alice", app.clock.now()).unwrap();
+        let secret = app.store.get_user("alice").unwrap().secret;
+        let guess = if tc.draw(generators::booleans()) {
+            secret.clone()
+        } else {
+            tc.draw(generators::text().min_size(1))
+        };
+
+        let reply = app
+            .get(&format!("/u/alice/check/{}", path_segment(&guess)))
+            .await;
+        assert_eq!(reply.status, StatusCode::OK);
+        assert_eq!(reply.body, if guess == secret { "true" } else { "false" });
+        assert_eq!(app.store.get_user("alice").unwrap().hits_before_solved, 1);
     }
 }

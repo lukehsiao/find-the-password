@@ -72,3 +72,30 @@ impl TestApp {
         }
     }
 }
+
+/// `segment` percent-encoded to sit in one path segment.
+///
+/// Every byte but ASCII alphanumerics is encoded, which RFC 3986 allows for
+/// any character. Encoding the dots too keeps `.` and `..` from reading as
+/// dot-segments, which URL libraries would otherwise resolve away before
+/// the request is sent.
+pub(crate) fn path_segment(segment: &str) -> String {
+    segment
+        .bytes()
+        .map(|b| {
+            if b.is_ascii_alphanumeric() {
+                char::from(b).to_string()
+            } else {
+                format!("%{b:02X}")
+            }
+        })
+        .collect()
+}
+
+/// `pairs` encoded as an `application/x-www-form-urlencoded` body, the way
+/// a browser submits a form.
+pub(crate) fn form<'a>(pairs: impl IntoIterator<Item = (&'a str, &'a str)>) -> String {
+    url::form_urlencoded::Serializer::new(String::new())
+        .extend_pairs(pairs)
+        .finish()
+}
