@@ -101,51 +101,51 @@ cargo run --release --example=passwords -- -u <username> -H http://localhost:300
 ## Benchmarks
 
 Just as a ballpark benchmark for actual password checking, I ran a test with [`oha`](https://github.com/hatoo/oha) against a release-built version of the server running on the same machine.
-This shows throughput of **just over 108k requests/second** due to the full in-memory implementation.
+This shows throughput of **just over 107k requests/second** due to the full in-memory implementation.
 This is run on a PC with 64 GB of DDR5 RAM and a Ryzen 7 7800X3D (8-core, 16-thread).
 
 ```
 ❯ oha -n 800000 -c 25 --disable-keepalive http://localhost:3000/u/bench/check/asdf
 Summary:
   Success rate: 100.00%
-  Total:        7389.0231 ms
-  Slowest:      3.1833 ms
-  Fastest:      0.0623 ms
-  Average:      0.2282 ms
-  Requests/sec: 108268.7097
+  Total:        7446.2643 ms
+  Slowest:      10.1764 ms
+  Fastest:      0.0579 ms
+  Average:      0.2314 ms
+  Requests/sec: 107436.4228
 
   Total data:   3.81 MiB
   Size/request: 5 B
-  Size/sec:     528.66 KiB
+  Size/sec:     524.59 KiB
 
 Response time histogram:
-  0.062 ms [1]      |
-  0.374 ms [775171] |■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■
-  0.687 ms [22717]  |
-  0.999 ms [978]    |
-  1.311 ms [355]    |
-  1.623 ms [749]    |
-  1.935 ms [2]      |
-  2.247 ms [23]     |
-  2.559 ms [0]      |
-  2.871 ms [0]      |
-  3.183 ms [4]      |
+   0.058 ms [1]      |
+   1.070 ms [799885] |■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■
+   2.082 ms [106]    |
+   3.093 ms [2]      |
+   4.105 ms [0]      |
+   5.117 ms [0]      |
+   6.129 ms [0]      |
+   7.141 ms [0]      |
+   8.153 ms [0]      |
+   9.165 ms [0]      |
+  10.176 ms [6]      |
 
 Response time distribution:
-  10.00% in 0.1539 ms
-  25.00% in 0.1820 ms
-  50.00% in 0.2180 ms
-  75.00% in 0.2584 ms
-  90.00% in 0.3033 ms
-  95.00% in 0.3415 ms
-  99.00% in 0.4659 ms
-  99.90% in 1.3047 ms
-  99.99% in 1.4563 ms
+  10.00% in 0.1672 ms
+  25.00% in 0.1846 ms
+  50.00% in 0.2129 ms
+  75.00% in 0.2629 ms
+  90.00% in 0.3170 ms
+  95.00% in 0.3596 ms
+  99.00% in 0.4675 ms
+  99.90% in 0.7444 ms
+  99.99% in 1.1355 ms
 
 
 Details (average, fastest, slowest):
-  DNS+dialup:   0.0904 ms, 0.0203 ms, 1.3269 ms
-  DNS-lookup:   0.0028 ms, 0.0009 ms, 0.7391 ms
+  DNS+dialup:   0.0630 ms, 0.0213 ms, 10.0012 ms
+  DNS-lookup:   0.0020 ms, 0.0007 ms, 0.4483 ms
 
 Status code distribution:
   [200] 800000 responses
