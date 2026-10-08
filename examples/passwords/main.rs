@@ -68,11 +68,15 @@ async fn main() -> Result<()> {
         })
         .buffer_unordered(CONCURRENCY);
 
-    bodies
-        .for_each(|b| async {
-            pb.inc(1);
+    // Take every response that has already arrived rather than one per
+    // wakeup: under load the batches grow, so the progress update and the
+    // scan for `true` cost once per batch instead of once per password.
+    let mut batches = bodies.ready_chunks(CONCURRENCY);
+    while let Some(batch) = batches.next().await {
+        pb.inc(batch.len() as u64);
+        for b in batch {
             match b {
-                Ok((pass, body)) if &body == "true" => {
+                Ok((pass, body)) if body == "true" => {
                     pb.finish_and_clear();
                     println!("Password is: {pass}");
                     process::exit(0);
@@ -82,8 +86,8 @@ async fn main() -> Result<()> {
                 }
                 _ => {}
             }
-        })
-        .await;
+        }
+    }
 
     pb.finish_and_clear();
     Err(anyhow!("Didn't find the password :("))
