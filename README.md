@@ -43,15 +43,82 @@ My blog post sets more context around the design of this server and some anecdot
 
 </div>
 
-## Running via Docker
+## Running via Podman
 
-We have a docker image of the latest commit on main.
-
-To run, you can do something like:
+We publish a container image of the latest commit on main to `ghcr.io/lukehsiao/find-the-password:latest`.
+For a quick local try:
 
 ```
-docker run -d -p 8080:8080 --name find-the-password ghcr.io/lukehsiao/find-the-password:latest
+podman run --rm -p 8080:8080 ghcr.io/lukehsiao/find-the-password:latest
 ```
+
+### Running it as a service
+
+To keep it running, hand the container to systemd with a [Quadlet](https://docs.podman.io/en/latest/markdown/podman-systemd.unit.5.html).
+Create `~/.config/containers/systemd/find-the-password.container`:
+
+```ini
+[Unit]
+Description=Find the Password challenge server
+
+[Container]
+Image=ghcr.io/lukehsiao/find-the-password:latest
+ContainerName=find-the-password
+PublishPort=127.0.0.1:8080:8080
+
+[Service]
+Restart=always
+
+[Install]
+WantedBy=default.target
+```
+
+The port is published on loopback only, since the [`Caddyfile`](Caddyfile) reverse proxies to `127.0.0.1:8080` and handles TLS.
+Drop the `127.0.0.1:` prefix if you want to serve it directly without a proxy.
+
+Then load and start it:
+
+```
+systemctl --user daemon-reload
+systemctl --user start find-the-password
+loginctl enable-linger $USER
+```
+
+Don't run `systemctl --user enable` on it; that fails on Quadlet units, and the `[Install]` section already starts it with your user manager.
+Linger tells systemd to start your user manager at boot and keep it running after you log out, so the container comes up on reboot without anyone logging in.
+
+Check on it with:
+
+```
+systemctl --user status find-the-password
+journalctl --user -u find-the-password
+```
+
+### Updating
+
+All state (users, passwords, progress) lives in memory, so restarting the container wipes every challenge in progress.
+For that reason the unit deliberately leaves out `AutoUpdate=registry`.
+`podman-auto-update.timer` updates every container carrying that label, so if you run the timer for other containers, adding the label here would let it restart this one mid-session too.
+Without the label, the timer and `podman auto-update` leave this container alone.
+
+Update by hand when no one is playing.
+First pull, then compare the running container's image to the freshly pulled `:latest`:
+
+```
+podman pull ghcr.io/lukehsiao/find-the-password:latest
+podman inspect --format '{{.Image}}' find-the-password
+podman image inspect --format '{{.Id}}' ghcr.io/lukehsiao/find-the-password:latest
+```
+
+If the two IDs match, you're already current and there's nothing to restart.
+If they differ, restart to pick up the new image, then optionally clean up the old one:
+
+```
+systemctl --user restart find-the-password
+podman image prune
+```
+
+The restart recreates the container from whatever `:latest` points to locally, so it picks up the image you just pulled.
 
 ## Building and Running
 
@@ -77,7 +144,7 @@ just build
 
 ### Running
 
-While we could add a Dockerfile or similar to this project, I typically just run it directly on a server.
+You can also skip the container and run the binary directly.
 The stylesheet and favicon are compiled in, so the binary is the whole app.
 It listens on `HOST`:`PORT` (default `127.0.0.1:3000`).
 To make this easier, see
