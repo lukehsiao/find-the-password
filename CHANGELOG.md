@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.4.1
+
+### Patch Changes
+
+- [`eddb588`](https://github.com/lukehsiao/find-the-password/commit/eddb5887dae85d21e195e8ac3a1169256b4af000) - **fix**: make the example solver reject certificates issued by the compromised eMudhra emSign G3 intermediates ([Mozilla bug 2083449](https://bugzilla.mozilla.org/show_bug.cgi?id=2083449)).
+  
+  The private keys of eight eMudhra intermediates are now public, so anyone can mint certificates that chain to them. `rustls-webpki` 0.103.16 rejects any path through those keys ([RUSTSEC-2026-0382](https://rustsec.org/advisories/RUSTSEC-2026-0382)), and `webpki-root-certs` 1.0.10 drops `emSign ECC Root CA - G3` from the `wasm32` bundle ([RUSTSEC-2026-0383](https://rustsec.org/advisories/RUSTSEC-2026-0383)). `rustls` 0.23.46 also fixes [RUSTSEC-2026-0346](https://rustsec.org/advisories/RUSTSEC-2026-0346) through [RUSTSEC-2026-0349](https://rustsec.org/advisories/RUSTSEC-2026-0349). Only the `passwords` example makes outbound TLS connections; the server itself does not.
+  
+  All other dependencies are also upgraded to their latest versions.
+
+<pre>
+$ git-stats v0.4.0..v0.4.1
+Author           Commits  Changed Files  Insertions  Deletions  Net Δ
+dependabot[bot]        3              8         +30        -30      0
+Luke Hsiao             2              8        +214       -138    +76
+Total                  5             16        +244       -168    +76
+</pre>
+
 ## 0.4.0
 
 ### Minor Changes
