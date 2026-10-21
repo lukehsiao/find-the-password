@@ -12,7 +12,7 @@ rust-version = "1.98"
 
 [dependencies]
 dashmap = "6.2.1"
-jiff = "0.2.37"
+jiff = "0.2.38"
 mimalloc = "0.1"
 rand = { version = "0.10.3", default-features = false, features = ["std_rng"] }
 regex = "1.13.1"
@@ -30,7 +30,7 @@ anyhow = "1.0.104"
 clap = { version = "4.6.7", features = ["derive"] }
 flate2 = "1.1.10"
 futures = "0.3.34"
-hegeltest = { version = "0.49.2", features = ["jiff"] }
+hegeltest = { version = "0.50.3", features = ["jiff"] }
 indicatif = "0.18.6"
 reqwest = "0.13.5"
 tokio = { version = "1", features = ["full"] }
