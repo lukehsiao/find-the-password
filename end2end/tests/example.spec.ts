@@ -7,6 +7,11 @@ test("homepage shows the challenge title and intro", async ({ page }) => {
   await expect(page.locator("h1#finding-the-password")).toHaveText(
     "Finding the password",
   );
+  // The server runs without BASE_URL, so the instructions fall back to
+  // localhost on the port it serves.
+  await expect(
+    page.getByText("http://localhost:3000/u/john/check/asdf", { exact: true }),
+  ).toBeVisible();
 });
 
 test("joining the challenge lands on the user page", async ({ page }) => {

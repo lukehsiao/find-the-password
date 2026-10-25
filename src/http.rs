@@ -14,7 +14,7 @@ use topcoat::{
 
 use crate::{Username, store, store::CheckOutcome};
 
-path_param!(password);
+path_param!(pub password);
 
 /// Simple healthcheck endpoint.
 #[route(GET "/up")]

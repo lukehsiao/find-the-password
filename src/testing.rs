@@ -6,10 +6,13 @@ use hegel::{
     generators::{self, PrintableGenerator},
 };
 use jiff::Timestamp;
-use topcoat::router::{
-    HeaderMap, Method, Router, StatusCode, header,
-    request::{Bytes, Request},
-    to_bytes,
+use topcoat::{
+    context::BaseUrl,
+    router::{
+        HeaderMap, Method, Router, StatusCode, header,
+        request::{Bytes, Request},
+        to_bytes,
+    },
 };
 
 use crate::{clock::Clock, router, store::ChallengeStore};
@@ -32,6 +35,10 @@ pub(crate) fn timestamps() -> impl PrintableGenerator<Timestamp> {
 pub(crate) fn wrong_guess(secret: &str) -> String {
     format!("{secret}-nope")
 }
+
+/// The base URL the test router serves players at. A host no deployment
+/// uses, so an assertion on it cannot pass by accident.
+pub(crate) const BASE_URL: &str = "https://find-the-password.test";
 
 /// The production router over a fresh store and a nulled clock, driven
 /// without a socket.
@@ -67,7 +74,11 @@ impl TestApp {
         let store = ChallengeStore::new();
         let clock = Clock::null();
         Self {
-            router: router(store.clone(), clock.clone()),
+            router: router(
+                store.clone(),
+                clock.clone(),
+                BaseUrl::new(BASE_URL).unwrap(),
+            ),
             store,
             clock,
         }

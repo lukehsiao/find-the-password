@@ -65,6 +65,7 @@ Description=Find the Password challenge server
 Image=ghcr.io/lukehsiao/find-the-password:latest
 ContainerName=find-the-password
 PublishPort=127.0.0.1:8080:8080
+Environment=BASE_URL=https://challenge.hsiao.dev
 
 [Service]
 Restart=always
@@ -75,6 +76,8 @@ WantedBy=default.target
 
 The port is published on loopback only, since the [`Caddyfile`](Caddyfile) reverse proxies to `127.0.0.1:8080` and handles TLS.
 Drop the `127.0.0.1:` prefix if you want to serve it directly without a proxy.
+`BASE_URL` is the address players type into their scripts, and the how-to-play instructions show it in every example URL.
+Set it to wherever players reach the server: a scheme and host, with no path.
 
 Then load and start it:
 
@@ -153,6 +156,9 @@ To make this easier, see
 just run          # the release binary from `just build`, on 0.0.0.0:3000
 just dev          # topcoat dev: rebuilds and reloads the page on save
 ```
+
+The instructions on the home page show URLs under `BASE_URL`, which defaults to `http://localhost:$PORT`.
+Set it when players reach the server at another address, such as behind a reverse proxy; it takes a scheme and host, with no path.
 
 ## Example Solution
 

@@ -9,7 +9,7 @@ pub mod store;
 mod testing;
 
 use topcoat::{
-    context::{Cx, app_context},
+    context::{BaseUrl, Cx, app_context},
     router::{Compression, CompressionLevel, Router, path_param},
 };
 
@@ -20,12 +20,12 @@ use crate::{clock::Clock, store::ChallengeStore};
 path_param!(pub username);
 
 /// The whole application: the pages players click through plus the
-/// plain-text routes their scripts hit, all backed by `store` and stamped
-/// with `clock`.
+/// plain-text routes their scripts hit, all backed by `store`, stamped with
+/// `clock`, and served to players at `base_url`.
 ///
 /// Every route is registered here by hand, so this function is the full
 /// URL contract in one place.
-pub fn router(store: ChallengeStore, clock: Clock) -> Router {
+pub fn router(store: ChallengeStore, clock: Clock, base_url: BaseUrl) -> Router {
     Router::builder()
         .layout(pages::layout)
         .page(pages::home)
@@ -39,6 +39,7 @@ pub fn router(store: ChallengeStore, clock: Clock) -> Router {
         .route(http::favicon)
         .app_context(store)
         .app_context(clock)
+        .base_url(base_url)
         // The only response big enough to matter is passwords.txt, 2MB of
         // random base62 that compresses about 25% at any level. The default
         // level spends 4x the CPU of Fastest on gzip and 2x on brotli, for

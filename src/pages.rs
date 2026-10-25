@@ -10,9 +10,9 @@ use jiff::{Span, SpanRound, Unit};
 use serde::Deserialize;
 use topcoat::{
     Result,
-    context::Cx,
+    context::{Cx, base_url},
     router::{
-        HeaderValue, Slot,
+        HeaderValue, Page, Route, Slot,
         content::Form,
         error::{RouterErrorExt, not_found, see_other},
         header::RETRY_AFTER,
@@ -21,7 +21,14 @@ use topcoat::{
     view::{Unescaped, View, component, view},
 };
 
-use crate::{Username, clock, error::AppError, player::Standing, store, store::Standings};
+use crate::{
+    Username, clock,
+    error::AppError,
+    http::{Password, check_password},
+    player::Standing,
+    store,
+    store::Standings,
+};
 
 /// Water.css palette overrides, inlined because they are a few kilobytes
 /// and inlining saves the request a separate stylesheet would cost.
@@ -164,8 +171,18 @@ async fn home_body(
 }
 
 /// The challenge and its rules, ending at the join form's heading.
+///
+/// The URLs here are absolute and come from the configured base URL and the
+/// routes themselves, so players copy URLs for the host that serves them.
 #[component]
-async fn how_to_play() -> Result<impl View> {
+async fn how_to_play(cx: &Cx) -> Result<impl View> {
+    let base = base_url(cx);
+    let check_template = base.join(Route::path(&check_password).as_str());
+    let check_example = href!(check_password, Username("john"), Password("asdf"))
+        .absolute()
+        .resolve(cx);
+    let player_template = base.join(Page::path(&player).as_str());
+    let player_example = href!(player, Username("john")).absolute().resolve(cx);
     Ok(view! {
         <h1 id="finding-the-password">"Finding the password"</h1>
         <p>
@@ -180,9 +197,7 @@ async fn how_to_play() -> Result<impl View> {
             <li>
                 "Check if a password is the one I lost by checking this website with the target password in the URL following this template:"
                 <pre>
-                    <code>
-                        "https://challenge.hsiao.dev/u/{username}/check/{password}"
-                    </code>
+                    <code>(check_template)</code>
                 </pre>
                 "where "
                 <code>"username"</code>
@@ -195,7 +210,7 @@ async fn how_to_play() -> Result<impl View> {
                 " and I wanted to check password "
                 <code>"asdf"</code>
                 ", the URL would be "
-                <code>"https://challenge.hsiao.dev/u/john/check/asdf"</code>
+                <code>(check_example)</code>
                 "."
             </li>
             <li>
@@ -209,11 +224,11 @@ async fn how_to_play() -> Result<impl View> {
                 "Seeing "
                 <code>"true"</code>
                 " means you found the password, but you're not done! Return to your user page, which lives at:"
-                <pre><code>"https://challenge.hsiao.dev/u/{username}"</code></pre>
+                <pre><code>(player_template)</code></pre>
                 "For example, if your username was "
                 <code>"john"</code>
                 ", your user page would be "
-                <code>"https://challenge.hsiao.dev/u/john"</code>
+                <code>(player_example)</code>
                 ". Enter the password you found in the confirmation box there. The challenge only counts as solved once you confirm the password."
             </li>
         </ol>
@@ -362,7 +377,7 @@ mod tests {
     use jiff::SignedDuration;
     use topcoat::router::{StatusCode, header};
 
-    use crate::testing::{TestApp, form, usernames};
+    use crate::testing::{BASE_URL, TestApp, form, usernames};
 
     #[tokio::test]
     async fn joining_redirects_to_the_new_players_page() {
@@ -488,6 +503,29 @@ mod tests {
         );
         let home = app.get("/").await.body;
         assert!(home.contains("<td>eve</td><td>1m 30s</td>"), "{home}");
+    }
+
+    // The instructions name the host players reach, not a hardcoded one,
+    // and the worked examples are URLs the router actually serves.
+    #[tokio::test]
+    async fn the_instructions_use_the_configured_base_url() {
+        let app = TestApp::new();
+        let home = app.get("/").await.body;
+        for path in [
+            "/u/{username}/check/{password}",
+            "/u/john/check/asdf",
+            "/u/{username}",
+            "/u/john",
+        ] {
+            assert!(
+                home.contains(&format!("<code>{BASE_URL}{path}</code>")),
+                "{path}"
+            );
+        }
+
+        app.store.join("john", app.clock.now()).unwrap();
+        assert_eq!(app.get("/u/john/check/asdf").await.body, "false");
+        assert_eq!(app.get("/u/john").await.status, StatusCode::OK);
     }
 
     #[tokio::test]
