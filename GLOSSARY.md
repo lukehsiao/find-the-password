@@ -58,3 +58,6 @@ _Avoid_: all players
 
 **Standings**:
 The leaderboard and the roster shown together.
+
+**Standing**:
+One player's place in the standings: their attempts and, once solved, their time to solve.

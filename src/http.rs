@@ -57,19 +57,19 @@ pub async fn check_password(cx: &Cx) -> Result<&'static str> {
     }
 }
 
-/// Produce passwords.txt for a user.
+/// Produce a player's password file.
 #[route(GET "/u/{username}/passwords.txt")]
 pub async fn passwords_txt(cx: &Cx) -> Result<String> {
     Ok(store(cx)
-        .passwords(path_param::<Username>(cx))
+        .password_file(path_param::<Username>(cx))
         .ok_or_not_found()?)
 }
 
 // The kid-facing HTTP contract, driven through the production router. These
 // lock the exact responses players' scripts depend on: literal `true`/`false`
 // bodies, 200/404 statuses, and a byte-for-byte passwords.txt. In-crate so
-// they can read the crate-private `User::secret` as the correct-password
-// oracle.
+// they can read the test-only `ChallengeStore::secret` as the
+// correct-password oracle.
 #[cfg(test)]
 mod tests {
     use std::io::Read;
@@ -98,7 +98,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn check_for_unknown_user_is_404() {
+    async fn check_for_unknown_player_is_404() {
         let reply = TestApp::new().get("/u/ghost/check/whatever").await;
         assert_eq!(reply.status, StatusCode::NOT_FOUND);
     }
@@ -106,7 +106,7 @@ mod tests {
     #[tokio::test]
     async fn wrong_password_returns_false() {
         let app = TestApp::new();
-        app.store.add_user("alice", app.clock.now()).unwrap();
+        app.store.join("alice", app.clock.now()).unwrap();
         let reply = app.get("/u/alice/check/definitely-wrong").await;
         assert_eq!(reply.status, StatusCode::OK);
         assert_eq!(reply.body, "false");
@@ -115,8 +115,8 @@ mod tests {
     #[tokio::test]
     async fn correct_password_returns_true() {
         let app = TestApp::new();
-        app.store.add_user("bob", app.clock.now()).unwrap();
-        let secret = app.store.get_user("bob").unwrap().secret;
+        app.store.join("bob", app.clock.now()).unwrap();
+        let secret = app.store.secret("bob").unwrap();
         let reply = app.get(&format!("/u/bob/check/{secret}")).await;
         assert_eq!(reply.status, StatusCode::OK);
         assert_eq!(reply.body, "true");
@@ -127,8 +127,8 @@ mod tests {
     #[tokio::test]
     async fn correct_check_does_not_solve() {
         let app = TestApp::new();
-        app.store.add_user("dave", app.clock.now()).unwrap();
-        let secret = app.store.get_user("dave").unwrap().secret;
+        app.store.join("dave", app.clock.now()).unwrap();
+        let secret = app.store.secret("dave").unwrap();
 
         for _ in 0..2 {
             let reply = app.get(&format!("/u/dave/check/{secret}")).await;
@@ -136,15 +136,15 @@ mod tests {
             assert_eq!(reply.body, "true");
         }
 
-        assert!(app.store.get_user("dave").unwrap().solved_at.is_none());
+        assert!(app.store.standing("dave").unwrap().time_to_solve.is_none());
         assert!(app.store.standings().leaderboard.is_empty());
     }
 
     #[tokio::test]
     async fn passwords_download_matches_store() {
         let app = TestApp::new();
-        app.store.add_user("carol", app.clock.now()).unwrap();
-        let expected = app.store.passwords("carol").unwrap();
+        app.store.join("carol", app.clock.now()).unwrap();
+        let expected = app.store.password_file("carol").unwrap();
         let reply = app.get("/u/carol/passwords.txt").await;
         assert_eq!(reply.status, StatusCode::OK);
         assert_eq!(
@@ -161,7 +161,7 @@ mod tests {
     #[tokio::test]
     async fn passwords_download_is_gzipped_when_accepted() {
         let app = TestApp::new();
-        app.store.add_user("carol", app.clock.now()).unwrap();
+        app.store.join("carol", app.clock.now()).unwrap();
         let (headers, body) = app.get_encoded("/u/carol/passwords.txt", "gzip").await;
         assert_eq!(headers[header::CONTENT_ENCODING], "gzip");
 
@@ -169,12 +169,12 @@ mod tests {
         GzDecoder::new(&body[..])
             .read_to_string(&mut decoded)
             .unwrap();
-        assert_eq!(decoded, app.store.passwords("carol").unwrap());
+        assert_eq!(decoded, app.store.password_file("carol").unwrap());
         assert!(body.len() < decoded.len());
     }
 
     #[tokio::test]
-    async fn passwords_for_unknown_user_is_404() {
+    async fn passwords_for_unknown_player_is_404() {
         let reply = TestApp::new().get("/u/ghost/passwords.txt").await;
         assert_eq!(reply.status, StatusCode::NOT_FOUND);
     }
@@ -186,8 +186,8 @@ mod tests {
     #[hegel::test]
     async fn check_answers_true_exactly_for_the_secret(tc: hegel::TestCase) {
         let app = TestApp::new();
-        app.store.add_user("alice", app.clock.now()).unwrap();
-        let secret = app.store.get_user("alice").unwrap().secret;
+        app.store.join("alice", app.clock.now()).unwrap();
+        let secret = app.store.secret("alice").unwrap();
         let guess = if tc.draw(generators::booleans()) {
             secret.clone()
         } else {
@@ -199,6 +199,6 @@ mod tests {
             .await;
         assert_eq!(reply.status, StatusCode::OK);
         assert_eq!(reply.body, if guess == secret { "true" } else { "false" });
-        assert_eq!(app.store.get_user("alice").unwrap().hits_before_solved, 1);
+        assert_eq!(app.store.standing("alice").unwrap().attempts, 1);
     }
 }

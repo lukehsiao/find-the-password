@@ -3,10 +3,10 @@ pub mod error;
 pub mod http;
 pub mod listener;
 pub mod pages;
+pub mod player;
 pub mod store;
 #[cfg(test)]
 mod testing;
-pub mod user;
 
 use topcoat::{
     context::{Cx, app_context},

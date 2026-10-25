@@ -21,7 +21,7 @@ use topcoat::{
     view::{Unescaped, View, component, view},
 };
 
-use crate::{Username, clock, error::AppError, store, store::Standings, user::User};
+use crate::{Username, clock, error::AppError, player::Standing, store, store::Standings};
 
 /// Water.css palette overrides, inlined because they are a few kilobytes
 /// and inlining saves the request a separate stylesheet would cost.
@@ -67,7 +67,7 @@ pub async fn home() -> Result<impl View> {
 /// Register a player, then send them to their page.
 #[page(POST "/")]
 pub async fn join(cx: &Cx, Form(form): Form<JoinForm>) -> Result<impl View> {
-    match store(cx).add_user(&form.username, clock(cx).now()) {
+    match store(cx).join(&form.username, clock(cx).now()) {
         Ok(()) => Err(see_other(href!(player, Username(&form.username)).resolve(cx)).into()),
         Err(error) => Ok(view! {
             (error.status())
@@ -79,10 +79,10 @@ pub async fn join(cx: &Cx, Form(form): Form<JoinForm>) -> Result<impl View> {
 /// A player's own page. Unknown players are sent home to join.
 #[page("/u/{username}")]
 pub async fn player(cx: &Cx) -> Result<impl View> {
-    let user = store(cx)
-        .get_user(path_param::<Username>(cx))
+    let standing = store(cx)
+        .standing(path_param::<Username>(cx))
         .ok_or_else(|| see_other(href!(home).resolve(cx)))?;
-    Ok(view! { player_body(user: user) })
+    Ok(view! { player_body(standing: standing) })
 }
 
 /// Confirm a found password; the first correct confirmation records the
@@ -97,7 +97,7 @@ pub async fn confirm(cx: &Cx, Form(form): Form<ConfirmForm>) -> Result<impl View
         }
         Some(Err(error)) => error,
     };
-    let user = store(cx).get_user(username).ok_or_not_found()?;
+    let standing = store(cx).standing(username).ok_or_not_found()?;
     // Whole seconds, rounded up: retrying after a rounded-down wait would
     // still land inside the cooldown.
     let retry_after = match error {
@@ -110,7 +110,7 @@ pub async fn confirm(cx: &Cx, Form(form): Form<ConfirmForm>) -> Result<impl View
     Ok(view! {
         (error.status())
         (retry_after)
-        player_body(user: user, error: Some(error))
+        player_body(standing: standing, error: Some(error))
     })
 }
 
@@ -263,12 +263,12 @@ async fn standings(cx: &Cx) -> Result<impl View> {
                 </tr>
             </thead>
             <tbody>
-                for completion in leaderboard {
+                for standing in leaderboard {
                     <tr>
-                        <td>(completion.username)</td>
-                        <td>(format_time_to_solve(completion.time_to_solve))</td>
+                        <td>(standing.username)</td>
+                        <td>(standing.time_to_solve.map(format_time_to_solve).unwrap_or_default())</td>
                         <td style="text-align: right;">
-                            <code>(completion.attempts_to_solve)</code>
+                            <code>(standing.attempts)</code>
                         </td>
                     </tr>
                 }
@@ -285,12 +285,12 @@ async fn standings(cx: &Cx) -> Result<impl View> {
                 </tr>
             </thead>
             <tbody>
-                for entry in roster {
+                for standing in roster {
                     <tr>
-                        <td>(entry.username)</td>
-                        <td>(if entry.solved { "yes" } else { "no" })</td>
+                        <td>(standing.username)</td>
+                        <td>(if standing.time_to_solve.is_some() { "yes" } else { "no" })</td>
                         <td style="text-align: right;">
-                            <code>(entry.attempts)</code>
+                            <code>(standing.attempts)</code>
                         </td>
                     </tr>
                 }
@@ -302,11 +302,11 @@ async fn standings(cx: &Cx) -> Result<impl View> {
 /// A player's page: the password file download, then either the
 /// confirmation form or, once solved, how the solve went.
 #[component]
-async fn player_body(user: User, #[default] error: Option<AppError>) -> Result<impl View> {
+async fn player_body(standing: Standing, #[default] error: Option<AppError>) -> Result<impl View> {
     Ok(view! {
         <h1 id="username">
             "Hi, "
-            (&user.username)
+            (&standing.username)
             "!"
         </h1>
         <p>
@@ -314,19 +314,19 @@ async fn player_body(user: User, #[default] error: Option<AppError>) -> Result<i
         </p>
         <a
             class="button"
-            href=(href!(crate::http::passwords_txt, Username(&user.username)))
+            href=(href!(crate::http::passwords_txt, Username(&standing.username)))
             download="passwords.txt"
         >
             "Get your passwords.txt"
         </a>
-        match user.solved_at {
-            Some(solved_at) => {
+        match standing.time_to_solve {
+            Some(time_to_solve) => {
                 <h2>"You solved it! 🎉"</h2>
                 <p>
                     "You confirmed the password after "
-                    (format_time_to_solve(solved_at - user.created_at))
+                    (format_time_to_solve(time_to_solve))
                     ", using "
-                    <code>(user.hits_before_solved)</code>
+                    <code>(standing.attempts)</code>
                     " attempts."
                 </p>
             }
@@ -340,7 +340,7 @@ async fn player_body(user: User, #[default] error: Option<AppError>) -> Result<i
                     ". To actually solve the challenge, enter the password you found below. Guesses here count as attempts too."
                 </p>
                 error_message(error: error)
-                <form method="post" action=(href!(confirm, Username(&user.username)))>
+                <form method="post" action=(href!(confirm, Username(&standing.username)))>
                     <input
                         type="text"
                         name="password"
@@ -370,7 +370,7 @@ mod tests {
         let reply = app.post_form("/", "username=alice").await;
         assert_eq!(reply.status, StatusCode::SEE_OTHER);
         assert_eq!(reply.header(&header::LOCATION), "/u/alice");
-        assert!(app.store.get_user("alice").is_some());
+        assert!(app.store.standing("alice").is_some());
 
         let page = app.get("/u/alice").await;
         assert_eq!(page.status, StatusCode::OK);
@@ -385,13 +385,13 @@ mod tests {
         assert_eq!(reply.status, StatusCode::UNPROCESSABLE_ENTITY);
         assert!(reply.body.contains("Username must be 3-32 characters"));
         assert!(reply.body.contains(r#"value="no/slash""#));
-        assert_eq!(app.store.standings().roster, vec![]);
+        assert!(app.store.standings().roster.is_empty());
     }
 
     #[tokio::test]
     async fn joining_with_a_taken_name_is_409() {
         let app = TestApp::new();
-        app.store.add_user("alice", app.clock.now()).unwrap();
+        app.store.join("alice", app.clock.now()).unwrap();
         let reply = app.post_form("/", "username=alice").await;
         assert_eq!(reply.status, StatusCode::CONFLICT);
         assert!(reply.body.contains("That username is already taken."));
@@ -413,7 +413,7 @@ mod tests {
     #[tokio::test]
     async fn confirming_maps_mistakes_to_4xx() {
         let app = TestApp::new();
-        app.store.add_user("alice", app.clock.now()).unwrap();
+        app.store.join("alice", app.clock.now()).unwrap();
 
         let reply = app.post_form("/u/alice", "password=wrong").await;
         assert_eq!(reply.status, StatusCode::UNPROCESSABLE_ENTITY);
@@ -428,14 +428,14 @@ mod tests {
         assert_eq!(reply.status, StatusCode::TOO_MANY_REQUESTS);
         assert_eq!(reply.header(&header::RETRY_AFTER), "10");
         assert!(reply.body.contains("Whoa, slow down!"));
-        assert_eq!(app.store.get_user("alice").unwrap().hits_before_solved, 1);
+        assert_eq!(app.store.standing("alice").unwrap().attempts, 1);
     }
 
     #[tokio::test]
     async fn confirming_the_password_solves_and_redirects() {
         let app = TestApp::new();
-        app.store.add_user("bob", app.clock.now()).unwrap();
-        let secret = app.store.get_user("bob").unwrap().secret;
+        app.store.join("bob", app.clock.now()).unwrap();
+        let secret = app.store.secret("bob").unwrap();
 
         let reply = app.post_form("/u/bob", &format!("password={secret}")).await;
         assert_eq!(reply.status, StatusCode::SEE_OTHER);
@@ -454,8 +454,8 @@ mod tests {
     #[hegel::test]
     async fn retry_after_is_the_shortest_wait_that_works(tc: hegel::TestCase) {
         let app = TestApp::new();
-        app.store.add_user("alice", app.clock.now()).unwrap();
-        let secret = app.store.get_user("alice").unwrap().secret;
+        app.store.join("alice", app.clock.now()).unwrap();
+        let secret = app.store.secret("alice").unwrap();
         let correct = format!("password={secret}");
         let confirm = || app.post_form("/u/alice", &correct);
         app.post_form("/u/alice", "password=wrong").await;
@@ -476,7 +476,7 @@ mod tests {
     async fn the_solve_time_runs_from_joining_to_confirming() {
         let app = TestApp::new();
         app.post_form("/", "username=eve").await;
-        let secret = app.store.get_user("eve").unwrap().secret;
+        let secret = app.store.secret("eve").unwrap();
 
         app.clock.advance(SignedDuration::from_secs(90));
         app.post_form("/u/eve", &format!("password={secret}")).await;
@@ -493,9 +493,9 @@ mod tests {
     #[tokio::test]
     async fn the_home_page_lists_every_player_and_the_leaderboard() {
         let app = TestApp::new();
-        app.store.add_user("solver", app.clock.now()).unwrap();
-        app.store.add_user("grinder", app.clock.now()).unwrap();
-        let secret = app.store.get_user("solver").unwrap().secret;
+        app.store.join("solver", app.clock.now()).unwrap();
+        app.store.join("grinder", app.clock.now()).unwrap();
+        let secret = app.store.secret("solver").unwrap();
         app.store.confirm("solver", &secret, app.clock.now());
         for _ in 0..3 {
             app.store.check("grinder", "wrong");
@@ -561,11 +561,11 @@ mod tests {
         if documented {
             assert_eq!(reply.status, StatusCode::SEE_OTHER);
             assert_eq!(reply.header(&header::LOCATION), format!("/u/{username}"));
-            assert!(app.store.get_user(&username).is_some());
+            assert!(app.store.standing(&username).is_some());
         } else {
             assert_eq!(reply.status, StatusCode::UNPROCESSABLE_ENTITY);
             assert_eq!(input_value(&reply.body, "username"), username);
-            assert_eq!(app.store.standings().roster, vec![]);
+            assert!(app.store.standings().roster.is_empty());
         }
     }
 
@@ -575,8 +575,8 @@ mod tests {
     #[hegel::test]
     async fn confirming_solves_exactly_for_the_secret(tc: hegel::TestCase) {
         let app = TestApp::new();
-        app.store.add_user("alice", app.clock.now()).unwrap();
-        let secret = app.store.get_user("alice").unwrap().secret;
+        app.store.join("alice", app.clock.now()).unwrap();
+        let secret = app.store.secret("alice").unwrap();
         let guess = if tc.draw(generators::booleans()) {
             secret.clone()
         } else {
@@ -586,7 +586,7 @@ mod tests {
         let reply = app
             .post_form("/u/alice", &form([("password", guess.as_str())]))
             .await;
-        let solved = app.store.get_user("alice").unwrap().solved_at.is_some();
+        let solved = app.store.standing("alice").unwrap().time_to_solve.is_some();
         if guess == secret {
             assert_eq!(reply.status, StatusCode::SEE_OTHER);
             assert!(solved);

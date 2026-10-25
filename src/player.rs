@@ -17,74 +17,45 @@ const OFFSET: usize = 15_000;
 // message states this value.
 pub(crate) const CONFIRM_COOLDOWN: SignedDuration = SignedDuration::from_secs(10);
 
-/// Defines all of the state we keep for a particular user.
-#[derive(Clone, Debug)]
-pub struct User {
-    pub username: String,
-    pub created_at: Timestamp,
-    pub solved_at: Option<Timestamp>,
-    pub hits_before_solved: u64,
-    // The seed is module-private, and the secret is readable only within
-    // the crate (the store and the in-crate tests): nothing outside may
-    // learn the answer.
+/// Everything the challenge keeps about one player.
+///
+/// Every field is private to this module, so nothing outside it can read
+/// the secret or recompute a solve. Other modules see a player only
+/// through a [`Standing`].
+#[derive(Debug)]
+pub(crate) struct Player {
+    username: String,
+    joined_at: Timestamp,
+    solved_at: Option<Timestamp>,
+    attempts: u64,
     seed: u64,
-    pub(crate) secret: String,
+    secret: String,
     // When the last evaluated confirmation happened; gates the cooldown.
     last_confirm_at: Option<Timestamp>,
 }
 
-/// One row of the leaderboard: a player who has solved.
+/// One player's place in the standings: their attempts and, once solved,
+/// their time to solve.
 #[derive(Debug, Clone)]
-pub struct Completion {
-    pub username: String,
-    pub time_to_solve: Span,
-    pub attempts_to_solve: u64,
-}
-
-/// One row in the homepage roster of all registered players.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct RosterEntry {
+pub struct Standing {
     pub username: String,
     pub attempts: u64,
-    pub solved: bool,
+    pub time_to_solve: Option<Span>,
 }
 
-impl User {
-    /// Create a new user with a seed and secret.
-    ///
-    /// Deterministic given `(username, now)`: the seed mixes a hash of the
-    /// username with the creation time, so the password file is reproducible
-    /// from stored state while still being unpredictable from the username
-    /// alone.
-    #[must_use]
-    pub fn new(username: String, now: Timestamp) -> User {
-        let mut hasher = DefaultHasher::new();
-        username.hash(&mut hasher);
-        let seed = hasher.finish() ^ now.as_millisecond().cast_unsigned();
-        let secret = StdRng::seed_from_u64(seed)
-            .sample_iter(&Alphanumeric)
-            .take(PASS_LEN)
-            .map(char::from)
-            .collect();
+/// A player's password file, ready to render.
+///
+/// Copying it out costs nothing, so callers can drop any lock on the player
+/// before paying for [`PasswordFile::render`].
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct PasswordFile {
+    seed: u64,
+}
 
-        User {
-            username,
-            created_at: now,
-            solved_at: None,
-            hits_before_solved: 0,
-            seed,
-            secret,
-            last_confirm_at: None,
-        }
-    }
-
-    /// Get this user's full password file, newline-terminated.
+impl PasswordFile {
+    /// The full file, newline-terminated.
     #[must_use]
-    #[expect(
-        clippy::missing_panics_doc,
-        reason = "the buffer is ASCII alphanumerics and newlines by construction"
-    )]
-    pub fn passwords(&self) -> String {
+    pub(crate) fn render(self) -> String {
         // Line i is the 32 bytes at i * (PASS_LEN + 1), followed by its
         // newline.
         let mut rng = StdRng::seed_from_u64(self.seed);
@@ -106,24 +77,72 @@ impl User {
 
         String::from_utf8(buf).expect("Alphanumeric and newlines are valid UTF-8")
     }
+}
 
-    /// Check if the password is the correct one.
+impl Player {
+    /// A player who joins as `username` at `now`.
+    ///
+    /// Deterministic given `(username, now)`: the seed mixes a hash of the
+    /// username with the join time, so the password file is reproducible
+    /// from stored state while still being unpredictable from the username
+    /// alone.
     #[must_use]
-    pub fn check_password(&self, password: &str) -> bool {
-        self.secret == password
+    pub(crate) fn new(username: String, now: Timestamp) -> Player {
+        let mut hasher = DefaultHasher::new();
+        username.hash(&mut hasher);
+        let seed = hasher.finish() ^ now.as_millisecond().cast_unsigned();
+        let secret = StdRng::seed_from_u64(seed)
+            .sample_iter(&Alphanumeric)
+            .take(PASS_LEN)
+            .map(char::from)
+            .collect();
+
+        Player {
+            username,
+            joined_at: now,
+            solved_at: None,
+            attempts: 0,
+            seed,
+            secret,
+            last_confirm_at: None,
+        }
     }
 
-    /// Record one check-URL guess and report whether it was correct.
-    ///
-    /// Checking never solves the challenge, no matter how many times the
-    /// correct password goes past; solving requires confirming the password
-    /// via [`User::confirm`]. Attempts only count while the challenge is
-    /// unsolved.
-    pub fn record_check(&mut self, password: &str) -> bool {
-        if self.solved_at.is_none() {
-            self.hits_before_solved += 1;
+    #[must_use]
+    pub(crate) fn password_file(&self) -> PasswordFile {
+        PasswordFile { seed: self.seed }
+    }
+
+    /// When this player solved, if they have.
+    #[must_use]
+    pub(crate) fn solved_at(&self) -> Option<Timestamp> {
+        self.solved_at
+    }
+
+    #[must_use]
+    pub(crate) fn standing(&self) -> Standing {
+        Standing {
+            username: self.username.clone(),
+            attempts: self.attempts,
+            time_to_solve: self.solved_at.map(|solved_at| solved_at - self.joined_at),
         }
-        self.check_password(password)
+    }
+
+    #[cfg(test)]
+    pub(crate) fn secret(&self) -> &str {
+        &self.secret
+    }
+
+    /// Record one check and report whether `password` is the secret.
+    ///
+    /// A check never solves the challenge, no matter how many times the
+    /// secret goes past; only [`Player::confirm`] solves. Attempts only
+    /// count while the challenge is unsolved.
+    pub(crate) fn check(&mut self, password: &str) -> bool {
+        if self.solved_at.is_none() {
+            self.attempts += 1;
+        }
+        self.secret == password
     }
 
     /// Apply one confirmation submission, which is what actually solves the
@@ -143,7 +162,7 @@ impl User {
     ///   [`CONFIRM_COOLDOWN`] of the last evaluated confirmation, carrying
     ///   the time left until the next one is evaluated.
     /// - [`AppError::WrongPassword`] if the password is not the secret.
-    pub fn confirm(&mut self, password: &str, now: Timestamp) -> Result<bool, AppError> {
+    pub(crate) fn confirm(&mut self, password: &str, now: Timestamp) -> Result<bool, AppError> {
         if self.solved_at.is_none() {
             if let Some(last) = self.last_confirm_at {
                 let retry_after = CONFIRM_COOLDOWN - now.duration_since(last);
@@ -152,10 +171,10 @@ impl User {
                 }
             }
             self.last_confirm_at = Some(now);
-            self.hits_before_solved += 1;
+            self.attempts += 1;
         }
 
-        if !self.check_password(password) {
+        if self.secret != password {
             return Err(AppError::WrongPassword);
         }
         let first = self.solved_at.is_none();
@@ -173,7 +192,7 @@ mod tests {
     use jiff::SignedDuration;
     use rand::{RngExt, SeedableRng, distr::Alphanumeric, rngs::StdRng};
 
-    use super::{AppError, CONFIRM_COOLDOWN, NUM_PASSWORDS, OFFSET, PASS_LEN, Timestamp, User};
+    use super::{AppError, CONFIRM_COOLDOWN, NUM_PASSWORDS, OFFSET, PASS_LEN, Player, Timestamp};
 
     fn usernames() -> impl PrintableGenerator<String> {
         generators::from_regex(r"[a-zA-Z0-9._-]{3,32}").fullmatch(true)
@@ -192,33 +211,28 @@ mod tests {
         format!("{secret}-nope")
     }
 
+    fn player(tc: &hegel::TestCase) -> Player {
+        Player::new(tc.draw(usernames()), tc.draw(timestamps()))
+    }
+
     #[hegel::test(test_cases = 12)]
-    fn passwords_contains_the_secret_exactly_once(tc: hegel::TestCase) {
-        let name = tc.draw(usernames());
-        let created = tc.draw(timestamps());
-        let user = User::new(name, created);
-        let hits = user
-            .passwords()
-            .lines()
-            .filter(|l| *l == user.secret)
-            .count();
+    fn password_file_contains_the_secret_exactly_once(tc: hegel::TestCase) {
+        let player = player(&tc);
+        let file = player.password_file().render();
+        let hits = file.lines().filter(|l| *l == player.secret).count();
         assert_eq!(hits, 1);
     }
 
     #[hegel::test(test_cases = 12)]
-    fn passwords_has_60000_lines_and_a_trailing_newline(tc: hegel::TestCase) {
-        let name = tc.draw(usernames());
-        let created = tc.draw(timestamps());
-        let file = User::new(name, created).passwords();
+    fn password_file_has_60000_lines_and_a_trailing_newline(tc: hegel::TestCase) {
+        let file = player(&tc).password_file().render();
         assert!(file.ends_with('\n'));
         assert_eq!(file.lines().count(), NUM_PASSWORDS);
     }
 
     #[hegel::test(test_cases = 12)]
     fn every_password_is_32_alphanumeric_chars(tc: hegel::TestCase) {
-        let name = tc.draw(usernames());
-        let created = tc.draw(timestamps());
-        let file = User::new(name, created).passwords();
+        let file = player(&tc).password_file().render();
         for line in file.lines() {
             assert_eq!(line.len(), PASS_LEN);
             assert!(line.chars().all(|c| c.is_ascii_alphanumeric()));
@@ -226,15 +240,13 @@ mod tests {
     }
 
     // Reference oracle: build the file the simple way, one String per line,
-    // swapped, then joined. passwords() must match it byte for byte, or a
-    // user's file would change under them mid-challenge.
+    // swapped, then joined. render() must match it byte for byte, or a
+    // player's file would change under them mid-challenge.
     #[hegel::test(test_cases = 12)]
-    fn passwords_matches_the_per_string_reference(tc: hegel::TestCase) {
-        let name = tc.draw(usernames());
-        let created = tc.draw(timestamps());
-        let user = User::new(name, created);
+    fn password_file_matches_the_per_string_reference(tc: hegel::TestCase) {
+        let player = player(&tc);
 
-        let mut rng = StdRng::seed_from_u64(user.seed);
+        let mut rng = StdRng::seed_from_u64(player.seed);
         let mut reference: Vec<String> = (0..NUM_PASSWORDS)
             .map(|_| {
                 (&mut rng)
@@ -248,52 +260,47 @@ mod tests {
             clippy::cast_possible_truncation,
             reason = "the modulo result is below NUM_PASSWORDS - OFFSET"
         )]
-        let offset = (user.seed % (NUM_PASSWORDS - OFFSET) as u64) as usize + OFFSET;
+        let offset = (player.seed % (NUM_PASSWORDS - OFFSET) as u64) as usize + OFFSET;
         reference.swap(0, offset);
         reference.push(String::new());
 
-        assert_eq!(user.passwords(), reference.join("\n"));
+        assert_eq!(player.password_file().render(), reference.join("\n"));
     }
 
     #[hegel::test(test_cases = 12)]
-    fn passwords_are_deterministic(tc: hegel::TestCase) {
-        let name = tc.draw(usernames());
-        let created = tc.draw(timestamps());
-        let user = User::new(name, created);
-        assert_eq!(user.passwords(), user.passwords());
+    fn password_file_is_deterministic(tc: hegel::TestCase) {
+        let file = player(&tc).password_file();
+        assert_eq!(file.render(), file.render());
     }
 
     #[hegel::test(test_cases = 12)]
     fn secret_is_never_in_the_first_15000_lines(tc: hegel::TestCase) {
-        let name = tc.draw(usernames());
-        let created = tc.draw(timestamps());
-        let user = User::new(name, created);
-        let index = user
-            .passwords()
+        let player = player(&tc);
+        let index = player
+            .password_file()
+            .render()
             .lines()
-            .position(|l| l == user.secret)
+            .position(|l| l == player.secret)
             .unwrap();
         assert!((OFFSET..NUM_PASSWORDS).contains(&index));
     }
 
     #[hegel::test]
-    fn user_is_deterministic_given_name_and_time(tc: hegel::TestCase) {
+    fn player_is_deterministic_given_name_and_time(tc: hegel::TestCase) {
         let name = tc.draw(usernames());
         let now = tc.draw(timestamps());
-        let a = User::new(name.clone(), now);
-        let b = User::new(name, now);
+        let a = Player::new(name.clone(), now);
+        let b = Player::new(name, now);
         assert_eq!(a.seed, b.seed);
         assert_eq!(a.secret, b.secret);
-        assert_eq!(a.created_at, b.created_at);
+        assert_eq!(a.joined_at, b.joined_at);
     }
 
     #[hegel::test]
     fn secret_is_32_alphanumeric_chars(tc: hegel::TestCase) {
-        let name = tc.draw(usernames());
-        let created = tc.draw(timestamps());
-        let user = User::new(name, created);
-        assert_eq!(user.secret.len(), PASS_LEN);
-        assert!(user.secret.chars().all(|c| c.is_ascii_alphanumeric()));
+        let player = player(&tc);
+        assert_eq!(player.secret.len(), PASS_LEN);
+        assert!(player.secret.chars().all(|c| c.is_ascii_alphanumeric()));
     }
 
     // Regression guard: the original byte-sum seed gave anagram usernames the
@@ -301,114 +308,108 @@ mod tests {
     #[test]
     fn anagram_usernames_get_different_secrets() {
         let now = Timestamp::UNIX_EPOCH;
-        let abc = User::new("abc".to_string(), now);
-        let bca = User::new("bca".to_string(), now);
+        let abc = Player::new("abc".to_string(), now);
+        let bca = Player::new("bca".to_string(), now);
         assert_ne!(abc.secret, bca.secret);
     }
 
     #[hegel::test]
     fn wrong_checks_count_but_never_solve(tc: hegel::TestCase) {
-        let name = tc.draw(usernames());
-        let created = tc.draw(timestamps());
-        let mut user = User::new(name, created);
+        let mut player = player(&tc);
         let attempts = tc.draw(generators::integers::<u64>().max_value(20));
-        let wrong = wrong_guess(&user.secret);
+        let wrong = wrong_guess(&player.secret);
         for _ in 0..attempts {
-            assert!(!user.record_check(&wrong));
+            assert!(!player.check(&wrong));
         }
-        assert_eq!(user.hits_before_solved, attempts);
-        assert!(user.solved_at.is_none());
+        assert_eq!(player.attempts, attempts);
+        assert!(player.solved_at.is_none());
     }
 
-    // The core of the feature: a script can loop right past the correct
-    // password and the challenge stays unsolved until it is confirmed.
+    // The core of the feature: a script can loop right past the secret and
+    // the challenge stays unsolved until it is confirmed.
     #[hegel::test]
     fn correct_checks_report_true_but_never_solve(tc: hegel::TestCase) {
-        let name = tc.draw(usernames());
-        let created = tc.draw(timestamps());
-        let mut user = User::new(name, created);
-        let secret = user.secret.clone();
+        let mut player = player(&tc);
+        let secret = player.secret.clone();
         let hits = tc.draw(generators::integers::<u64>().min_value(1).max_value(20));
         for _ in 0..hits {
-            assert!(user.record_check(&secret));
+            assert!(player.check(&secret));
         }
-        assert!(user.solved_at.is_none());
+        assert!(player.solved_at.is_none());
         assert_eq!(
-            user.hits_before_solved, hits,
+            player.attempts, hits,
             "found-but-unconfirmed checks keep counting"
         );
     }
 
     #[hegel::test]
     fn correct_confirm_solves_exactly_once(tc: hegel::TestCase) {
-        let created = tc.draw(timestamps());
-        let name = tc.draw(usernames());
-        let mut user = User::new(name, created);
-        let secret = user.secret.clone();
+        let mut player = player(&tc);
+        let joined = player.joined_at;
+        let secret = player.secret.clone();
         let wrong = wrong_guess(&secret);
 
         let checks = tc.draw(generators::integers::<u64>().max_value(10));
         for _ in 0..checks {
-            user.record_check(&wrong);
+            player.check(&wrong);
         }
 
         // Wrong confirmations spaced past the cooldown; each one counts.
         let confirms = tc.draw(generators::integers::<u64>().max_value(5));
-        let mut now = created;
+        let mut now = joined;
         for _ in 0..confirms {
             let gap = tc.draw(generators::integers::<i64>().min_value(10).max_value(3600));
             now = now.checked_add(SignedDuration::from_secs(gap)).unwrap();
-            assert!(matches!(
-                user.confirm(&wrong, now),
-                Err(AppError::WrongPassword)
-            ));
+            assert_eq!(player.confirm(&wrong, now), Err(AppError::WrongPassword));
         }
 
         let gap = tc.draw(generators::integers::<i64>().min_value(10).max_value(3600));
         let solved_at = now.checked_add(SignedDuration::from_secs(gap)).unwrap();
-        assert!(matches!(user.confirm(&secret, solved_at), Ok(true)));
-        assert_eq!(user.solved_at, Some(solved_at));
-        assert_eq!(user.hits_before_solved, checks + confirms + 1);
+        assert_eq!(player.confirm(&secret, solved_at), Ok(true));
+        let standing = player.standing();
+        assert_eq!(standing.attempts, checks + confirms + 1);
+        // Span has no PartialEq; compare as fixed-unit durations.
+        assert_eq!(
+            standing.time_to_solve.unwrap().fieldwise(),
+            (solved_at - joined).fieldwise()
+        );
 
         // Checks and confirmations after solving report correctness but
-        // never change the record.
-        let frozen = user.hits_before_solved;
-        assert!(matches!(user.confirm(&secret, solved_at), Ok(false)));
-        assert!(matches!(
-            user.confirm(&wrong, solved_at),
+        // never change the record, and the cooldown no longer applies.
+        assert_eq!(player.confirm(&secret, solved_at), Ok(false));
+        assert_eq!(
+            player.confirm(&wrong, solved_at),
             Err(AppError::WrongPassword)
-        ));
-        assert!(user.record_check(&secret));
-        assert!(!user.record_check(&wrong));
-        assert_eq!(user.hits_before_solved, frozen);
+        );
+        assert!(player.check(&secret));
+        assert!(!player.check(&wrong));
+        assert_eq!(player.attempts, checks + confirms + 1);
+        assert_eq!(player.solved_at, Some(solved_at));
     }
 
     // The throttle gate sits in front of evaluation: inside the window even
-    // the correct password is rejected, and nothing is counted.
+    // the secret is rejected, nothing is counted, and the error carries
+    // exactly the time left.
     #[hegel::test]
     fn confirms_within_the_cooldown_are_throttled_and_uncounted(tc: hegel::TestCase) {
-        let created = tc.draw(timestamps());
-        let name = tc.draw(usernames());
-        let mut user = User::new(name, created);
-        let secret = user.secret.clone();
+        let mut player = player(&tc);
+        let joined = player.joined_at;
+        let secret = player.secret.clone();
         let wrong = wrong_guess(&secret);
 
-        assert!(matches!(
-            user.confirm(&wrong, created),
-            Err(AppError::WrongPassword)
-        ));
+        assert_eq!(player.confirm(&wrong, joined), Err(AppError::WrongPassword));
 
         let within = tc.draw(generators::integers::<i64>().min_value(0).max_value(9_999));
         let elapsed = SignedDuration::from_millis(within);
-        let again = created.checked_add(elapsed).unwrap();
+        let again = joined.checked_add(elapsed).unwrap();
         assert_eq!(
-            user.confirm(&secret, again),
+            player.confirm(&secret, again),
             Err(AppError::ConfirmThrottled {
                 retry_after: CONFIRM_COOLDOWN - elapsed
             })
         );
-        assert!(user.solved_at.is_none());
-        assert_eq!(user.hits_before_solved, 1);
+        assert!(player.solved_at.is_none());
+        assert_eq!(player.attempts, 1);
     }
 
     // The clock can step backwards (NTP). A confirmation timestamped before
@@ -417,27 +418,23 @@ mod tests {
     // the clock passes the old mark plus the cooldown.
     #[hegel::test]
     fn confirms_with_a_rewound_clock_are_throttled(tc: hegel::TestCase) {
-        let created = tc.draw(timestamps());
-        let name = tc.draw(usernames());
-        let mut user = User::new(name, created);
-        let secret = user.secret.clone();
+        let mut player = player(&tc);
+        let joined = player.joined_at;
+        let secret = player.secret.clone();
         let wrong = wrong_guess(&secret);
 
-        assert!(matches!(
-            user.confirm(&wrong, created),
-            Err(AppError::WrongPassword)
-        ));
+        assert_eq!(player.confirm(&wrong, joined), Err(AppError::WrongPassword));
 
         let rewind = tc.draw(generators::integers::<i64>().min_value(1).max_value(86_400));
-        let earlier = created
+        let earlier = joined
             .checked_sub(SignedDuration::from_secs(rewind))
             .unwrap();
         assert!(matches!(
-            user.confirm(&secret, earlier),
+            player.confirm(&secret, earlier),
             Err(AppError::ConfirmThrottled { .. })
         ));
-        assert!(user.solved_at.is_none());
-        assert_eq!(user.hits_before_solved, 1);
+        assert!(player.solved_at.is_none());
+        assert_eq!(player.attempts, 1);
     }
 
     // Checks and confirmations interleave in the wild. Every evaluated
@@ -445,57 +442,47 @@ mod tests {
     // never solve.
     #[hegel::test]
     fn interleaved_wrong_guesses_each_count_once(tc: hegel::TestCase) {
-        let created = tc.draw(timestamps());
-        let name = tc.draw(usernames());
-        let mut user = User::new(name, created);
-        let wrong = wrong_guess(&user.secret);
+        let mut player = player(&tc);
+        let wrong = wrong_guess(&player.secret);
 
         let guesses = tc.draw(generators::integers::<u64>().max_value(20));
-        let mut now = created;
+        let mut now = player.joined_at;
         for _ in 0..guesses {
-            let is_check = tc.draw(generators::booleans());
-            if is_check {
-                assert!(!user.record_check(&wrong));
+            if tc.draw(generators::booleans()) {
+                assert!(!player.check(&wrong));
             } else {
                 let gap = tc.draw(generators::integers::<i64>().min_value(10).max_value(3600));
                 now = now.checked_add(SignedDuration::from_secs(gap)).unwrap();
-                assert!(matches!(
-                    user.confirm(&wrong, now),
-                    Err(AppError::WrongPassword)
-                ));
+                assert_eq!(player.confirm(&wrong, now), Err(AppError::WrongPassword));
             }
         }
-        assert_eq!(user.hits_before_solved, guesses);
-        assert!(user.solved_at.is_none());
+        assert_eq!(player.attempts, guesses);
+        assert!(player.solved_at.is_none());
     }
 
     // Throttled submissions must not extend the window, or a hammering
     // script could lock a player out of confirming forever.
     #[hegel::test]
     fn throttled_confirms_do_not_extend_the_cooldown_window(tc: hegel::TestCase) {
-        let created = tc.draw(timestamps());
-        let name = tc.draw(usernames());
-        let mut user = User::new(name, created);
-        let secret = user.secret.clone();
+        let mut player = player(&tc);
+        let joined = player.joined_at;
+        let secret = player.secret.clone();
         let wrong = wrong_guess(&secret);
 
-        assert!(matches!(
-            user.confirm(&wrong, created),
-            Err(AppError::WrongPassword)
-        ));
+        assert_eq!(player.confirm(&wrong, joined), Err(AppError::WrongPassword));
         let hammers = tc.draw(generators::integers::<i64>().min_value(1).max_value(9));
         for s in 1..=hammers {
-            let at = created.checked_add(SignedDuration::from_secs(s)).unwrap();
+            let at = joined.checked_add(SignedDuration::from_secs(s)).unwrap();
             assert!(matches!(
-                user.confirm(&wrong, at),
+                player.confirm(&wrong, at),
                 Err(AppError::ConfirmThrottled { .. })
             ));
         }
 
         // The window is measured from the last *evaluated* confirmation, so
         // it ends exactly one cooldown after the first submission.
-        let at = created.checked_add(CONFIRM_COOLDOWN).unwrap();
-        assert!(matches!(user.confirm(&secret, at), Ok(true)));
-        assert_eq!(user.hits_before_solved, 2);
+        let at = joined.checked_add(CONFIRM_COOLDOWN).unwrap();
+        assert_eq!(player.confirm(&secret, at), Ok(true));
+        assert_eq!(player.attempts, 2);
     }
 }

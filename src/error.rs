@@ -1,7 +1,7 @@
 use jiff::SignedDuration;
 use topcoat::router::StatusCode;
 
-use crate::user::CONFIRM_COOLDOWN;
+use crate::player::CONFIRM_COOLDOWN;
 
 /// Mistakes a player can make through the forms.
 ///
