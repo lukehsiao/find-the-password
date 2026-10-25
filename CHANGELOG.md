@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.5.0
+
+### Minor Changes
+
+- [`ee422ed`](https://github.com/lukehsiao/find-the-password/commit/ee422ed06bc85143edb309f051b80d2b4687b2fa) - **feat**: the how-to-play instructions now show URLs under the `BASE_URL` environment variable, which defaults to `http://localhost:$PORT`, instead of a hardcoded `https://challenge.hsiao.dev`. Self-hosted servers now show players their own address. An invalid `BASE_URL`, or one with a path, stops the server at startup.
+
+### Patch Changes
+
+- [`7596b11`](https://github.com/lukehsiao/find-the-password/commit/7596b11f62c1ced7b8b61999bc9b9d4ab9051bdf) - **fix**: a throttled confirmation's `Retry-After` header now gives the time actually left in the cooldown, rounded up to whole seconds, instead of always the full 10 seconds.
+
+<pre>
+$ git-stats v0.4.1..v0.5.0
+Author           Commits  Changed Files  Insertions  Deletions  Net Δ
+Luke Hsiao             8             39       +1111      -1116     -5
+dependabot[bot]        1              4          +7         -7      0
+Total                  9             43       +1118      -1123     -5
+</pre>
+
 ## 0.4.1
 
 ### Patch Changes
