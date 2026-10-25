@@ -1,4 +1,7 @@
+use jiff::SignedDuration;
 use topcoat::router::StatusCode;
+
+use crate::user::CONFIRM_COOLDOWN;
 
 /// Mistakes a player can make through the forms.
 ///
@@ -14,8 +17,16 @@ pub enum AppError {
     UsernameTaken,
     #[error("That's not the password. Keep hunting!")]
     WrongPassword,
-    #[error("Whoa, slow down! You can only confirm once every 10 seconds.")]
-    ConfirmThrottled,
+    /// A confirmation inside the cooldown, which is not evaluated.
+    #[error(
+        "Whoa, slow down! You can only confirm once every {} seconds.",
+        CONFIRM_COOLDOWN.as_secs()
+    )]
+    ConfirmThrottled {
+        /// How long until the next confirmation is evaluated. Always
+        /// positive.
+        retry_after: SignedDuration,
+    },
 }
 
 impl AppError {
@@ -28,7 +39,7 @@ impl AppError {
         match self {
             AppError::InvalidUsername | AppError::WrongPassword => StatusCode::UNPROCESSABLE_ENTITY,
             AppError::UsernameTaken => StatusCode::CONFLICT,
-            AppError::ConfirmThrottled => StatusCode::TOO_MANY_REQUESTS,
+            AppError::ConfirmThrottled { .. } => StatusCode::TOO_MANY_REQUESTS,
         }
     }
 }

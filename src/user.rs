@@ -3,6 +3,8 @@ use std::hash::{DefaultHasher, Hash, Hasher};
 use jiff::{SignedDuration, Span, Timestamp};
 use rand::{RngExt, SeedableRng, distr::Alphanumeric, rngs::StdRng};
 
+use crate::error::AppError;
+
 const NUM_PASSWORDS: usize = 60_000;
 const PASS_LEN: usize = 32;
 // Keep the secret out of the first 15k lines so a naive top-down scan
@@ -11,10 +13,8 @@ const OFFSET: usize = 15_000;
 // One confirmation evaluated per 10 seconds: a player retyping after a typo
 // barely notices the wait, while looping all 60k passwords through the
 // confirmation form would take about a week. Deliberately not advertised in
-// the instructions; players only meet it through the throttle error. That
-// error message (AppError::ConfirmThrottled) repeats the value in prose, as
-// does the Retry-After header this constant is crate-visible for; update
-// them together with this.
+// the instructions; players only meet it through the throttle error, whose
+// message states this value.
 pub(crate) const CONFIRM_COOLDOWN: SignedDuration = SignedDuration::from_secs(10);
 
 /// Defines all of the state we keep for a particular user.
@@ -47,17 +47,6 @@ pub struct RosterEntry {
     pub username: String,
     pub attempts: u64,
     pub solved: bool,
-}
-
-/// What a single confirmation submission did to a user's state.
-#[derive(Debug, Clone)]
-pub enum ConfirmResult {
-    /// Rejected without evaluating the password: submitted within
-    /// [`CONFIRM_COOLDOWN`] of the last evaluated confirmation.
-    Throttled,
-    Incorrect,
-    AlreadySolved,
-    JustSolved,
 }
 
 impl User {
@@ -140,36 +129,40 @@ impl User {
     /// Apply one confirmation submission, which is what actually solves the
     /// challenge.
     ///
-    /// The first correct confirmation solves, exactly once; confirmations
-    /// after solving still report correctness but change nothing.
+    /// Returns `Ok(true)` for the solve itself, the first correct
+    /// confirmation, and `Ok(false)` for a correct confirmation after it.
+    /// Confirmations after solving report correctness but change nothing.
     ///
     /// At most one submission per [`CONFIRM_COOLDOWN`] is evaluated, so this
     /// path cannot be brute-forced like the check URL. Throttled submissions
     /// are not evaluated, do not count as attempts, and do not extend the
     /// window.
-    pub fn confirm(&mut self, password: &str, now: Timestamp) -> ConfirmResult {
-        if self.solved_at.is_some() {
-            return if self.check_password(password) {
-                ConfirmResult::AlreadySolved
-            } else {
-                ConfirmResult::Incorrect
-            };
+    ///
+    /// # Errors
+    /// - [`AppError::ConfirmThrottled`] if submitted within
+    ///   [`CONFIRM_COOLDOWN`] of the last evaluated confirmation, carrying
+    ///   the time left until the next one is evaluated.
+    /// - [`AppError::WrongPassword`] if the password is not the secret.
+    pub fn confirm(&mut self, password: &str, now: Timestamp) -> Result<bool, AppError> {
+        if self.solved_at.is_none() {
+            if let Some(last) = self.last_confirm_at {
+                let retry_after = CONFIRM_COOLDOWN - now.duration_since(last);
+                if retry_after.is_positive() {
+                    return Err(AppError::ConfirmThrottled { retry_after });
+                }
+            }
+            self.last_confirm_at = Some(now);
+            self.hits_before_solved += 1;
         }
 
-        if let Some(last) = self.last_confirm_at
-            && now.duration_since(last) < CONFIRM_COOLDOWN
-        {
-            return ConfirmResult::Throttled;
+        if !self.check_password(password) {
+            return Err(AppError::WrongPassword);
         }
-        self.last_confirm_at = Some(now);
-
-        self.hits_before_solved += 1;
-        if self.check_password(password) {
+        let first = self.solved_at.is_none();
+        if first {
             self.solved_at = Some(now);
-            ConfirmResult::JustSolved
-        } else {
-            ConfirmResult::Incorrect
         }
+        Ok(first)
     }
 }
 
@@ -180,9 +173,7 @@ mod tests {
     use jiff::SignedDuration;
     use rand::{RngExt, SeedableRng, distr::Alphanumeric, rngs::StdRng};
 
-    use super::{
-        CONFIRM_COOLDOWN, ConfirmResult, NUM_PASSWORDS, OFFSET, PASS_LEN, Timestamp, User,
-    };
+    use super::{AppError, CONFIRM_COOLDOWN, NUM_PASSWORDS, OFFSET, PASS_LEN, Timestamp, User};
 
     fn usernames() -> impl PrintableGenerator<String> {
         generators::from_regex(r"[a-zA-Z0-9._-]{3,32}").fullmatch(true)
@@ -369,29 +360,23 @@ mod tests {
             now = now.checked_add(SignedDuration::from_secs(gap)).unwrap();
             assert!(matches!(
                 user.confirm(&wrong, now),
-                ConfirmResult::Incorrect
+                Err(AppError::WrongPassword)
             ));
         }
 
         let gap = tc.draw(generators::integers::<i64>().min_value(10).max_value(3600));
         let solved_at = now.checked_add(SignedDuration::from_secs(gap)).unwrap();
-        assert!(matches!(
-            user.confirm(&secret, solved_at),
-            ConfirmResult::JustSolved
-        ));
+        assert!(matches!(user.confirm(&secret, solved_at), Ok(true)));
         assert_eq!(user.solved_at, Some(solved_at));
         assert_eq!(user.hits_before_solved, checks + confirms + 1);
 
         // Checks and confirmations after solving report correctness but
         // never change the record.
         let frozen = user.hits_before_solved;
-        assert!(matches!(
-            user.confirm(&secret, solved_at),
-            ConfirmResult::AlreadySolved
-        ));
+        assert!(matches!(user.confirm(&secret, solved_at), Ok(false)));
         assert!(matches!(
             user.confirm(&wrong, solved_at),
-            ConfirmResult::Incorrect
+            Err(AppError::WrongPassword)
         ));
         assert!(user.record_check(&secret));
         assert!(!user.record_check(&wrong));
@@ -410,17 +395,18 @@ mod tests {
 
         assert!(matches!(
             user.confirm(&wrong, created),
-            ConfirmResult::Incorrect
+            Err(AppError::WrongPassword)
         ));
 
-        let within = tc.draw(generators::integers::<i64>().min_value(0).max_value(9));
-        let again = created
-            .checked_add(SignedDuration::from_secs(within))
-            .unwrap();
-        assert!(matches!(
+        let within = tc.draw(generators::integers::<i64>().min_value(0).max_value(9_999));
+        let elapsed = SignedDuration::from_millis(within);
+        let again = created.checked_add(elapsed).unwrap();
+        assert_eq!(
             user.confirm(&secret, again),
-            ConfirmResult::Throttled
-        ));
+            Err(AppError::ConfirmThrottled {
+                retry_after: CONFIRM_COOLDOWN - elapsed
+            })
+        );
         assert!(user.solved_at.is_none());
         assert_eq!(user.hits_before_solved, 1);
     }
@@ -439,7 +425,7 @@ mod tests {
 
         assert!(matches!(
             user.confirm(&wrong, created),
-            ConfirmResult::Incorrect
+            Err(AppError::WrongPassword)
         ));
 
         let rewind = tc.draw(generators::integers::<i64>().min_value(1).max_value(86_400));
@@ -448,7 +434,7 @@ mod tests {
             .unwrap();
         assert!(matches!(
             user.confirm(&secret, earlier),
-            ConfirmResult::Throttled
+            Err(AppError::ConfirmThrottled { .. })
         ));
         assert!(user.solved_at.is_none());
         assert_eq!(user.hits_before_solved, 1);
@@ -475,7 +461,7 @@ mod tests {
                 now = now.checked_add(SignedDuration::from_secs(gap)).unwrap();
                 assert!(matches!(
                     user.confirm(&wrong, now),
-                    ConfirmResult::Incorrect
+                    Err(AppError::WrongPassword)
                 ));
             }
         }
@@ -495,21 +481,21 @@ mod tests {
 
         assert!(matches!(
             user.confirm(&wrong, created),
-            ConfirmResult::Incorrect
+            Err(AppError::WrongPassword)
         ));
         let hammers = tc.draw(generators::integers::<i64>().min_value(1).max_value(9));
         for s in 1..=hammers {
             let at = created.checked_add(SignedDuration::from_secs(s)).unwrap();
-            assert!(matches!(user.confirm(&wrong, at), ConfirmResult::Throttled));
+            assert!(matches!(
+                user.confirm(&wrong, at),
+                Err(AppError::ConfirmThrottled { .. })
+            ));
         }
 
         // The window is measured from the last *evaluated* confirmation, so
         // it ends exactly one cooldown after the first submission.
         let at = created.checked_add(CONFIRM_COOLDOWN).unwrap();
-        assert!(matches!(
-            user.confirm(&secret, at),
-            ConfirmResult::JustSolved
-        ));
+        assert!(matches!(user.confirm(&secret, at), Ok(true)));
         assert_eq!(user.hits_before_solved, 2);
     }
 }

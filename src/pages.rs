@@ -21,13 +21,7 @@ use topcoat::{
     view::{Unescaped, View, component, view},
 };
 
-use crate::{
-    Username, clock,
-    error::AppError,
-    store,
-    store::{ConfirmOutcome, Standings},
-    user::{CONFIRM_COOLDOWN, User},
-};
+use crate::{Username, clock, error::AppError, store, store::Standings, user::User};
 
 /// Water.css palette overrides, inlined because they are a few kilobytes
 /// and inlining saves the request a separate stylesheet would cost.
@@ -97,18 +91,22 @@ pub async fn player(cx: &Cx) -> Result<impl View> {
 pub async fn confirm(cx: &Cx, Form(form): Form<ConfirmForm>) -> Result<impl View> {
     let username = path_param::<Username>(cx);
     let error = match store(cx).confirm(username, &form.password, clock(cx).now()) {
-        ConfirmOutcome::NotFound => return Err(not_found().into()),
-        ConfirmOutcome::Confirmed => {
+        None => return Err(not_found().into()),
+        Some(Ok(())) => {
             return Err(see_other(href!(player, Username(username)).resolve(cx)).into());
         }
-        ConfirmOutcome::Incorrect => AppError::WrongPassword,
-        ConfirmOutcome::Throttled => AppError::ConfirmThrottled,
+        Some(Err(error)) => error,
     };
     let user = store(cx).get_user(username).ok_or_not_found()?;
-    // The upper bound on the wait; the exact remainder is not worth
-    // threading through the domain types.
-    let retry_after = (error == AppError::ConfirmThrottled)
-        .then(|| (RETRY_AFTER, HeaderValue::from(CONFIRM_COOLDOWN.as_secs())));
+    // Whole seconds, rounded up: retrying after a rounded-down wait would
+    // still land inside the cooldown.
+    let retry_after = match error {
+        AppError::ConfirmThrottled { retry_after } => Some((
+            RETRY_AFTER,
+            HeaderValue::from(retry_after.as_secs() + i64::from(retry_after.subsec_nanos() > 0)),
+        )),
+        _ => None,
+    };
     Ok(view! {
         (error.status())
         (retry_after)
@@ -449,26 +447,29 @@ mod tests {
         assert!(!page.body.contains("Confirm password"));
     }
 
-    // Retry-After is a promise: waiting exactly that long gets the next
+    // Retry-After is the shortest whole-second wait that works: one second
+    // less is still throttled, and waiting exactly that long gets the next
     // confirmation evaluated.
     #[tokio::test]
-    async fn a_throttled_confirmation_is_evaluated_after_retry_after() {
+    #[hegel::test]
+    async fn retry_after_is_the_shortest_wait_that_works(tc: hegel::TestCase) {
         let app = TestApp::new();
         app.store.add_user("alice", app.clock.now()).unwrap();
         let secret = app.store.get_user("alice").unwrap().secret;
+        let correct = format!("password={secret}");
+        let confirm = || app.post_form("/u/alice", &correct);
         app.post_form("/u/alice", "password=wrong").await;
 
-        let throttled = app
-            .post_form("/u/alice", &format!("password={secret}"))
-            .await;
+        let elapsed = tc.draw(generators::integers::<i64>().min_value(0).max_value(9_999));
+        app.clock.advance(SignedDuration::from_millis(elapsed));
+        let throttled = confirm().await;
         assert_eq!(throttled.status, StatusCode::TOO_MANY_REQUESTS);
         let wait: i64 = throttled.header(&header::RETRY_AFTER).parse().unwrap();
 
-        app.clock.advance(SignedDuration::from_secs(wait));
-        let reply = app
-            .post_form("/u/alice", &format!("password={secret}"))
-            .await;
-        assert_eq!(reply.status, StatusCode::SEE_OTHER);
+        app.clock.advance(SignedDuration::from_secs(wait - 1));
+        assert_eq!(confirm().await.status, StatusCode::TOO_MANY_REQUESTS);
+        app.clock.advance(SignedDuration::from_secs(1));
+        assert_eq!(confirm().await.status, StatusCode::SEE_OTHER);
     }
 
     #[tokio::test]

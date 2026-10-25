@@ -7,7 +7,7 @@ use tracing::info;
 
 use crate::{
     error::AppError,
-    user::{Completion, ConfirmResult, RosterEntry, User},
+    user::{Completion, RosterEntry, User},
 };
 
 /// The outcome of checking one password guess.
@@ -16,15 +16,6 @@ pub enum CheckOutcome {
     NotFound,
     Incorrect,
     Correct,
-}
-
-/// The outcome of one confirmation submission from the user page.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ConfirmOutcome {
-    NotFound,
-    Throttled,
-    Incorrect,
-    Confirmed,
 }
 
 /// The leaderboard and the roster, read together in one pass.
@@ -106,25 +97,28 @@ impl ChallengeStore {
         }
     }
 
-    /// Record one confirmation submission. The first correct confirmation
-    /// solves the challenge; correct confirmations after that stay
-    /// `Confirmed`.
-    pub fn confirm(&self, username: &str, password: &str, now: Timestamp) -> ConfirmOutcome {
+    /// Record one confirmation submission, or `None` for an unknown player.
+    /// The first correct confirmation solves the challenge; correct
+    /// confirmations after that are still `Ok`.
+    ///
+    /// # Errors
+    /// The player's mistake, as [`User::confirm`] reports it.
+    pub fn confirm(
+        &self,
+        username: &str,
+        password: &str,
+        now: Timestamp,
+    ) -> Option<Result<(), AppError>> {
         // Log after the shard guard drops, so checks on this shard never
         // wait on log output.
-        let (result, attempts) = match self.users.get_mut(username) {
-            None => return ConfirmOutcome::NotFound,
-            Some(mut user) => (user.confirm(password, now), user.hits_before_solved),
+        let (result, attempts) = {
+            let mut user = self.users.get_mut(username)?;
+            (user.confirm(password, now), user.hits_before_solved)
         };
-        match result {
-            ConfirmResult::Throttled => ConfirmOutcome::Throttled,
-            ConfirmResult::Incorrect => ConfirmOutcome::Incorrect,
-            ConfirmResult::AlreadySolved => ConfirmOutcome::Confirmed,
-            ConfirmResult::JustSolved => {
-                info!(username, attempts, "solved");
-                ConfirmOutcome::Confirmed
-            }
+        if result == Ok(true) {
+            info!(username, attempts, "solved");
         }
+        Some(result.map(|_| ()))
     }
 
     /// The leaderboard and the roster from one walk over the players, so
@@ -188,7 +182,7 @@ mod tests {
 
     use jiff::{SignedDuration, Timestamp};
 
-    use super::{AppError, ChallengeStore, CheckOutcome, ConfirmOutcome, valid_username};
+    use super::{AppError, ChallengeStore, CheckOutcome, valid_username};
 
     fn usernames() -> impl PrintableGenerator<String> {
         generators::from_regex(r"[a-zA-Z0-9._-]{3,32}").fullmatch(true)
@@ -281,10 +275,7 @@ mod tests {
         let store = ChallengeStore::new();
         let name = tc.draw(usernames());
         let now = tc.draw(timestamps());
-        assert_eq!(
-            store.confirm(&name, "anything", now),
-            ConfirmOutcome::NotFound
-        );
+        assert_eq!(store.confirm(&name, "anything", now), None);
     }
 
     #[hegel::test]
@@ -345,16 +336,10 @@ mod tests {
                 .max_value(86_400 * 30),
         );
         let solved = joined + SignedDuration::from_secs(elapsed);
-        assert_eq!(
-            store.confirm(&name, &secret, solved),
-            ConfirmOutcome::Confirmed
-        );
+        assert_eq!(store.confirm(&name, &secret, solved), Some(Ok(())));
         // Extra guesses after solving must not grow or change the
-        // leaderboard; a repeated correct confirmation stays Confirmed.
-        assert_eq!(
-            store.confirm(&name, &secret, solved),
-            ConfirmOutcome::Confirmed
-        );
+        // leaderboard; a repeated correct confirmation is still Ok.
+        assert_eq!(store.confirm(&name, &secret, solved), Some(Ok(())));
         store.check(&name, &secret);
         store.check(&name, &wrong);
 
@@ -409,12 +394,12 @@ mod tests {
 
         assert_eq!(
             store.confirm(&name, "wrong", now),
-            ConfirmOutcome::Incorrect
+            Some(Err(AppError::WrongPassword))
         );
-        assert_eq!(
+        assert!(matches!(
             store.confirm(&name, "wrong", now),
-            ConfirmOutcome::Throttled
-        );
+            Some(Err(AppError::ConfirmThrottled { .. }))
+        ));
         let roster = store.standings().roster;
         let entry = roster.iter().find(|e| e.username == name).unwrap();
         assert_eq!(entry.attempts, 1, "throttled submissions never count");
@@ -484,10 +469,7 @@ mod tests {
         // confirmation counts one more and does.
         assert_eq!(store.check("solver", &secret), CheckOutcome::Correct);
         assert!(store.standings().leaderboard.is_empty());
-        assert_eq!(
-            store.confirm("solver", &secret, now),
-            ConfirmOutcome::Confirmed
-        );
+        assert_eq!(store.confirm("solver", &secret, now), Some(Ok(())));
 
         let grinds = tc.draw(generators::integers::<u64>().max_value(10));
         for _ in 0..grinds {
@@ -559,7 +541,7 @@ mod tests {
                     // The full player flow: miss, hit, then confirm.
                     store.check(name, "wrong");
                     assert_eq!(store.check(name, secret), CheckOutcome::Correct);
-                    assert_eq!(store.confirm(name, secret, now), ConfirmOutcome::Confirmed);
+                    assert_eq!(store.confirm(name, secret, now), Some(Ok(())));
                 });
             }
         });
@@ -598,10 +580,7 @@ mod tests {
             }
         });
 
-        assert_eq!(
-            store.confirm("hammer", &secret, now),
-            ConfirmOutcome::Confirmed
-        );
+        assert_eq!(store.confirm("hammer", &secret, now), Some(Ok(())));
         let leaderboard = store.standings().leaderboard;
         assert_eq!(leaderboard.len(), 1);
         assert_eq!(
@@ -612,8 +591,8 @@ mod tests {
     }
 
     // Racing correct confirmations must solve exactly once: the winner
-    // solves, everyone after lands on the AlreadySolved path, and all of
-    // them read Confirmed.
+    // solves, everyone after lands on the already-solved path, and all of
+    // them read Ok.
     #[test]
     fn racing_correct_confirms_solve_once() {
         let store = ChallengeStore::new();
@@ -627,10 +606,7 @@ mod tests {
         std::thread::scope(|scope| {
             for _ in 0..racers {
                 scope.spawn(move || {
-                    assert_eq!(
-                        store_ref.confirm("racer", secret_ref, now),
-                        ConfirmOutcome::Confirmed
-                    );
+                    assert_eq!(store_ref.confirm("racer", secret_ref, now), Some(Ok(())));
                 });
             }
         });
@@ -667,11 +643,11 @@ mod tests {
 
         let incorrect = outcomes
             .iter()
-            .filter(|&&o| o == ConfirmOutcome::Incorrect)
+            .filter(|&&o| o == Some(Err(AppError::WrongPassword)))
             .count();
         let throttled = outcomes
             .iter()
-            .filter(|&&o| o == ConfirmOutcome::Throttled)
+            .filter(|o| matches!(o, Some(Err(AppError::ConfirmThrottled { .. }))))
             .count();
         assert_eq!(incorrect, 1, "exactly one submission is evaluated");
         assert_eq!(throttled, usize::try_from(racers).unwrap() - 1);
