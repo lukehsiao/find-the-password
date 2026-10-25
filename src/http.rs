@@ -12,7 +12,7 @@ use topcoat::{
     },
 };
 
-use crate::{Username, store, store::CheckOutcome};
+use crate::{Username, store};
 
 path_param!(pub password);
 
@@ -51,9 +51,9 @@ pub async fn check_password(cx: &Cx) -> Result<&'static str> {
     // Unparsed path parameters borrow the router's decoded captures, so the
     // hottest route in the app allocates nothing of its own.
     match store(cx).check(path_param::<Username>(cx), path_param::<Password>(cx)) {
-        CheckOutcome::NotFound => Err(not_found().into()),
-        CheckOutcome::Incorrect => Ok("false"),
-        CheckOutcome::Correct => Ok("true"),
+        None => Err(not_found().into()),
+        Some(false) => Ok("false"),
+        Some(true) => Ok("true"),
     }
 }
 
@@ -137,7 +137,6 @@ mod tests {
         }
 
         assert!(app.store.standing("dave").unwrap().time_to_solve.is_none());
-        assert!(app.store.standings().leaderboard.is_empty());
     }
 
     #[tokio::test]

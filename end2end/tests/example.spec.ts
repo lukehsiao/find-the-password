@@ -77,7 +77,7 @@ test("rapid confirmation attempts hit the cooldown", async ({ page }) => {
   );
 });
 
-test("the roster lists a registered player with their attempt count", async ({
+test("the roster lists a joined player with their attempt count", async ({
   page,
 }) => {
   // Unique per run so reruns against a live server don't collide.

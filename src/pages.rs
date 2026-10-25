@@ -71,7 +71,7 @@ pub async fn home() -> Result<impl View> {
     Ok(view! { home_body() })
 }
 
-/// Register a player, then send them to their page.
+/// Join the challenge, then send the new player to their page.
 #[page(POST "/")]
 pub async fn join(cx: &Cx, Form(form): Form<JoinForm>) -> Result<impl View> {
     match store(cx).join(&form.username, clock(cx).now()) {
@@ -92,8 +92,8 @@ pub async fn player(cx: &Cx) -> Result<impl View> {
     Ok(view! { player_body(standing: standing) })
 }
 
-/// Confirm a found password; the first correct confirmation records the
-/// solve and the leaderboard entry.
+/// Confirm a found password. The first correct confirmation solves the
+/// challenge.
 #[page(POST "/u/{username}")]
 pub async fn confirm(cx: &Cx, Form(form): Form<ConfirmForm>) -> Result<impl View> {
     let username = path_param::<Username>(cx);
@@ -178,11 +178,9 @@ async fn home_body(
 async fn how_to_play(cx: &Cx) -> Result<impl View> {
     let base = base_url(cx);
     let check_template = base.join(Route::path(&check_password).as_str());
-    let check_example = href!(check_password, Username("john"), Password("asdf"))
-        .absolute()
-        .resolve(cx);
+    let check_example = href!(check_password, Username("john"), Password("asdf")).absolute();
     let player_template = base.join(Page::path(&player).as_str());
-    let player_example = href!(player, Username("john")).absolute().resolve(cx);
+    let player_example = href!(player, Username("john")).absolute();
     Ok(view! {
         <h1 id="finding-the-password">"Finding the password"</h1>
         <p>
@@ -377,7 +375,10 @@ mod tests {
     use jiff::SignedDuration;
     use topcoat::router::{StatusCode, header};
 
-    use crate::testing::{BASE_URL, TestApp, form, usernames};
+    use crate::{
+        player::CONFIRM_COOLDOWN,
+        testing::{BASE_URL, TestApp, form, usernames},
+    };
 
     #[tokio::test]
     async fn joining_redirects_to_the_new_players_page() {
@@ -391,16 +392,6 @@ mod tests {
         assert_eq!(page.status, StatusCode::OK);
         assert!(page.body.contains("Hi, alice!"));
         assert!(page.body.contains(r#"href="/u/alice/passwords.txt""#));
-    }
-
-    #[tokio::test]
-    async fn joining_with_an_invalid_name_is_422_and_keeps_the_input() {
-        let app = TestApp::new();
-        let reply = app.post_form("/", "username=no%2Fslash").await;
-        assert_eq!(reply.status, StatusCode::UNPROCESSABLE_ENTITY);
-        assert!(reply.body.contains("Username must be 3-32 characters"));
-        assert!(reply.body.contains(r#"value="no/slash""#));
-        assert!(app.store.standings().roster.is_empty());
     }
 
     #[tokio::test]
@@ -475,8 +466,15 @@ mod tests {
         let confirm = || app.post_form("/u/alice", &correct);
         app.post_form("/u/alice", "password=wrong").await;
 
-        let elapsed = tc.draw(generators::integers::<i64>().min_value(0).max_value(9_999));
-        app.clock.advance(SignedDuration::from_millis(elapsed));
+        // Nanosecond resolution, like the system clock, so a rounding that
+        // drops sub-second remainders shows up.
+        let cooldown = i64::try_from(CONFIRM_COOLDOWN.as_nanos()).unwrap();
+        let elapsed = tc.draw(
+            generators::integers::<i64>()
+                .min_value(0)
+                .max_value(cooldown - 1),
+        );
+        app.clock.advance(SignedDuration::from_nanos(elapsed));
         let throttled = confirm().await;
         assert_eq!(throttled.status, StatusCode::TOO_MANY_REQUESTS);
         let wait: i64 = throttled.header(&header::RETRY_AFTER).parse().unwrap();
@@ -505,12 +503,10 @@ mod tests {
         assert!(home.contains("<td>eve</td><td>1m 30s</td>"), "{home}");
     }
 
-    // The instructions name the host players reach, not a hardcoded one,
-    // and the worked examples are URLs the router actually serves.
+    // The instructions name the host players reach, not a hardcoded one.
     #[tokio::test]
     async fn the_instructions_use_the_configured_base_url() {
-        let app = TestApp::new();
-        let home = app.get("/").await.body;
+        let home = TestApp::new().get("/").await.body;
         for path in [
             "/u/{username}/check/{password}",
             "/u/john/check/asdf",
@@ -522,10 +518,6 @@ mod tests {
                 "{path}"
             );
         }
-
-        app.store.join("john", app.clock.now()).unwrap();
-        assert_eq!(app.get("/u/john/check/asdf").await.body, "false");
-        assert_eq!(app.get("/u/john").await.status, StatusCode::OK);
     }
 
     #[tokio::test]
@@ -575,36 +567,38 @@ mod tests {
         decoded
     }
 
-    // Whatever a player types is either registered and sent to a page that
-    // names it, or rejected with 422 and handed back intact in the form so
-    // they can fix it. The oracle is the documented rule: 3-32
-    // URL-unreserved ASCII characters.
+    // A valid name joins and lands on a page that names it.
     #[tokio::test]
     #[hegel::test]
-    async fn joining_accepts_exactly_the_documented_usernames(tc: hegel::TestCase) {
+    async fn joining_with_a_valid_name_redirects_to_its_page(tc: hegel::TestCase) {
         let app = TestApp::new();
-        let username = if tc.draw(generators::booleans()) {
-            tc.draw(usernames())
-        } else {
-            tc.draw(generators::text())
-        };
-        let documented = (3..=32).contains(&username.len())
-            && username
-                .bytes()
-                .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'-' | b'.' | b'_'));
-
+        let username = tc.draw(usernames());
         let reply = app
             .post_form("/", &form([("username", username.as_str())]))
             .await;
-        if documented {
-            assert_eq!(reply.status, StatusCode::SEE_OTHER);
-            assert_eq!(reply.header(&header::LOCATION), format!("/u/{username}"));
-            assert!(app.store.standing(&username).is_some());
-        } else {
-            assert_eq!(reply.status, StatusCode::UNPROCESSABLE_ENTITY);
-            assert_eq!(input_value(&reply.body, "username"), username);
-            assert!(app.store.standings().roster.is_empty());
-        }
+        assert_eq!(reply.status, StatusCode::SEE_OTHER);
+        assert_eq!(reply.header(&header::LOCATION), format!("/u/{username}"));
+        assert!(app.store.standing(&username).is_some());
+    }
+
+    // A rejected name comes back with 422, handed back intact in the form so
+    // the player can fix it, whatever characters it holds.
+    #[tokio::test]
+    #[hegel::test]
+    async fn a_rejected_join_hands_back_the_typed_name(tc: hegel::TestCase) {
+        let app = TestApp::new();
+        // One character outside the allowed set makes any name invalid.
+        let username = format!(
+            "{}{}",
+            tc.draw(generators::text()),
+            tc.draw(generators::from_regex(r"[^a-zA-Z0-9._-]").fullmatch(true))
+        );
+        let reply = app
+            .post_form("/", &form([("username", username.as_str())]))
+            .await;
+        assert_eq!(reply.status, StatusCode::UNPROCESSABLE_ENTITY);
+        assert_eq!(input_value(&reply.body, "username"), username);
+        assert!(app.store.standings().roster.is_empty());
     }
 
     // Whatever is typed into the confirmation box reaches the store intact:

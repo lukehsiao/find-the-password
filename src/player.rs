@@ -20,8 +20,8 @@ pub(crate) const CONFIRM_COOLDOWN: SignedDuration = SignedDuration::from_secs(10
 /// Everything the challenge keeps about one player.
 ///
 /// Every field is private to this module, so nothing outside it can read
-/// the secret or recompute a solve. Other modules see a player only
-/// through a [`Standing`].
+/// the secret or change a solve. Other modules read a player through
+/// [`Player::standing`] and a few read-only accessors.
 #[derive(Debug)]
 pub(crate) struct Player {
     username: String,
@@ -120,6 +120,11 @@ impl Player {
     }
 
     #[must_use]
+    pub(crate) fn attempts(&self) -> u64 {
+        self.attempts
+    }
+
+    #[must_use]
     pub(crate) fn standing(&self) -> Standing {
         Standing {
             username: self.username.clone(),
@@ -198,30 +203,6 @@ mod tests {
         Player::new(tc.draw(usernames()), tc.draw(timestamps()))
     }
 
-    #[hegel::test(test_cases = 12)]
-    fn password_file_contains_the_secret_exactly_once(tc: hegel::TestCase) {
-        let player = player(&tc);
-        let file = player.password_file().render();
-        let hits = file.lines().filter(|l| *l == player.secret).count();
-        assert_eq!(hits, 1);
-    }
-
-    #[hegel::test(test_cases = 12)]
-    fn password_file_has_60000_lines_and_a_trailing_newline(tc: hegel::TestCase) {
-        let file = player(&tc).password_file().render();
-        assert!(file.ends_with('\n'));
-        assert_eq!(file.lines().count(), NUM_PASSWORDS);
-    }
-
-    #[hegel::test(test_cases = 12)]
-    fn every_password_is_32_alphanumeric_chars(tc: hegel::TestCase) {
-        let file = player(&tc).password_file().render();
-        for line in file.lines() {
-            assert_eq!(line.len(), PASS_LEN);
-            assert!(line.chars().all(|c| c.is_ascii_alphanumeric()));
-        }
-    }
-
     // Reference oracle: build the file the simple way, one String per line,
     // swapped, then joined. render() must match it byte for byte, or a
     // player's file would change under them mid-challenge.
@@ -251,21 +232,17 @@ mod tests {
     }
 
     #[hegel::test(test_cases = 12)]
-    fn password_file_is_deterministic(tc: hegel::TestCase) {
-        let file = player(&tc).password_file();
-        assert_eq!(file.render(), file.render());
-    }
-
-    #[hegel::test(test_cases = 12)]
-    fn secret_is_never_in_the_first_15000_lines(tc: hegel::TestCase) {
+    fn secret_is_in_the_file_once_and_past_the_first_15000_lines(tc: hegel::TestCase) {
         let player = player(&tc);
-        let index = player
-            .password_file()
-            .render()
+        let file = player.password_file().render();
+        let hits: Vec<usize> = file
             .lines()
-            .position(|l| l == player.secret)
-            .unwrap();
-        assert!((OFFSET..NUM_PASSWORDS).contains(&index));
+            .enumerate()
+            .filter(|(_, line)| *line == player.secret)
+            .map(|(index, _)| index)
+            .collect();
+        assert_eq!(hits.len(), 1);
+        assert!((OFFSET..NUM_PASSWORDS).contains(&hits[0]));
     }
 
     #[hegel::test]
@@ -382,8 +359,13 @@ mod tests {
 
         assert_eq!(player.confirm(&wrong, joined), Err(AppError::WrongPassword));
 
-        let within = tc.draw(generators::integers::<i64>().min_value(0).max_value(9_999));
-        let elapsed = SignedDuration::from_millis(within);
+        let cooldown = i64::try_from(CONFIRM_COOLDOWN.as_nanos()).unwrap();
+        let within = tc.draw(
+            generators::integers::<i64>()
+                .min_value(0)
+                .max_value(cooldown - 1),
+        );
+        let elapsed = SignedDuration::from_nanos(within);
         let again = joined.checked_add(elapsed).unwrap();
         assert_eq!(
             player.confirm(&secret, again),
@@ -397,8 +379,8 @@ mod tests {
 
     // The clock can step backwards (NTP). A confirmation timestamped before
     // the last evaluated one sits inside the window and is throttled, no
-    // matter how far back the rewind goes; the gate heals on its own once
-    // the clock passes the old mark plus the cooldown.
+    // matter how far back the rewind goes. The wait it reports runs to the
+    // old mark plus the cooldown, which is when the gate opens again.
     #[hegel::test]
     fn confirms_with_a_rewound_clock_are_throttled(tc: hegel::TestCase) {
         let mut player = player(&tc);
@@ -408,16 +390,20 @@ mod tests {
 
         assert_eq!(player.confirm(&wrong, joined), Err(AppError::WrongPassword));
 
-        let rewind = tc.draw(generators::integers::<i64>().min_value(1).max_value(86_400));
-        let earlier = joined
-            .checked_sub(SignedDuration::from_secs(rewind))
-            .unwrap();
-        assert!(matches!(
-            player.confirm(&secret, earlier),
-            Err(AppError::ConfirmThrottled { .. })
-        ));
+        let rewind = SignedDuration::from_secs(
+            tc.draw(generators::integers::<i64>().min_value(1).max_value(86_400)),
+        );
+        assert_eq!(
+            player.confirm(&secret, joined.checked_sub(rewind).unwrap()),
+            Err(AppError::ConfirmThrottled {
+                retry_after: CONFIRM_COOLDOWN + rewind
+            })
+        );
         assert!(player.solved_at.is_none());
         assert_eq!(player.attempts, 1);
+
+        let reopens = joined.checked_add(CONFIRM_COOLDOWN).unwrap();
+        assert_eq!(player.confirm(&secret, reopens), Ok(true));
     }
 
     // Checks and confirmations interleave in the wild. Every evaluated

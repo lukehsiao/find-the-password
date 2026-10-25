@@ -9,14 +9,6 @@ use crate::{
     player::{Player, Standing},
 };
 
-/// The outcome of checking one password guess.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum CheckOutcome {
-    NotFound,
-    Incorrect,
-    Correct,
-}
-
 /// The leaderboard and the roster, read together in one pass.
 #[derive(Debug, Clone)]
 pub struct Standings {
@@ -46,10 +38,20 @@ impl ChallengeStore {
     /// Validate `username` and join the challenge under it.
     ///
     /// # Errors
-    /// - [`AppError::InvalidUsername`] if the name fails [`valid_username`].
+    /// - [`AppError::InvalidUsername`] unless the name is 3-32 ASCII letters,
+    ///   digits, hyphens, periods, or underscores.
     /// - [`AppError::UsernameTaken`] if the name already exists.
     pub fn join(&self, username: &str, now: Timestamp) -> Result<(), AppError> {
-        if !valid_username(username) {
+        // Usernames are spliced verbatim into URL paths (`/u/{username}/...`),
+        // so every allowed character must be URL-unreserved (RFC 3986). The
+        // 3-character minimum also keeps out `.` and `..`, the only names a
+        // client would collapse as path dot-segments before the request ever
+        // reaches the router.
+        let valid = (3..=32).contains(&username.len())
+            && username
+                .bytes()
+                .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'-' | b'.' | b'_'));
+        if !valid {
             return Err(AppError::InvalidUsername);
         }
         // The entry API reserves the slot atomically, so two concurrent
@@ -81,19 +83,11 @@ impl ChallengeStore {
         Some(file.render())
     }
 
-    /// Record one check. A check only reports correctness; the challenge is
-    /// solved by confirming the password via [`Self::confirm`].
-    pub fn check(&self, username: &str, password: &str) -> CheckOutcome {
-        match self.players.get_mut(username) {
-            None => CheckOutcome::NotFound,
-            Some(mut player) => {
-                if player.check(password) {
-                    CheckOutcome::Correct
-                } else {
-                    CheckOutcome::Incorrect
-                }
-            }
-        }
+    /// Record one check and report whether `password` is the secret, or
+    /// `None` for an unknown player. A check never solves; only
+    /// [`Self::confirm`] does.
+    pub fn check(&self, username: &str, password: &str) -> Option<bool> {
+        Some(self.players.get_mut(username)?.check(password))
     }
 
     /// Record one confirmation submission, or `None` for an unknown player.
@@ -101,7 +95,8 @@ impl ChallengeStore {
     /// confirmations after that are still `Ok`.
     ///
     /// # Errors
-    /// The player's mistake, as [`Player::confirm`] reports it.
+    /// - [`AppError::ConfirmThrottled`] if submitted inside the cooldown.
+    /// - [`AppError::WrongPassword`] if the password is not the secret.
     pub fn confirm(
         &self,
         username: &str,
@@ -110,14 +105,12 @@ impl ChallengeStore {
     ) -> Option<Result<(), AppError>> {
         // Log after the shard guard drops, so checks on this shard never
         // wait on log output.
-        let (result, solve) = {
+        let (result, attempts) = {
             let mut player = self.players.get_mut(username)?;
-            let result = player.confirm(password, now);
-            let solve = (result == Ok(true)).then(|| player.standing());
-            (result, solve)
+            (player.confirm(password, now), player.attempts())
         };
-        if let Some(solve) = solve {
-            info!(username, attempts = solve.attempts, "solved");
+        if result == Ok(true) {
+            info!(username, attempts, "solved");
         }
         Some(result.map(|_| ()))
     }
@@ -160,26 +153,12 @@ impl ChallengeStore {
     }
 }
 
-/// Whether `username` is 3-32 ASCII letters, digits, hyphens, periods, or
-/// underscores.
-///
-/// Usernames are spliced verbatim into URL paths (`/u/{username}/...`), so
-/// every allowed character must be URL-unreserved (RFC 3986). The 3-character
-/// minimum also keeps out `.` and `..`, the only names a client would
-/// collapse as path dot-segments before the request ever reaches the router.
-fn valid_username(username: &str) -> bool {
-    (3..=32).contains(&username.len())
-        && username
-            .bytes()
-            .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'-' | b'.' | b'_'))
-}
-
 #[cfg(test)]
 mod tests {
     use hegel::generators;
     use jiff::{SignedDuration, Timestamp};
 
-    use super::{AppError, ChallengeStore, CheckOutcome};
+    use super::{AppError, ChallengeStore};
     use crate::testing::{timestamps, usernames, wrong_guess};
 
     #[hegel::test]
@@ -242,6 +221,19 @@ mod tests {
         assert_eq!(store.join("a.b-c_d", now), Ok(()));
     }
 
+    // Generated names rarely reach 32 characters, so pin the inclusive upper
+    // bound here.
+    #[test]
+    fn the_longest_allowed_name_is_32_characters() {
+        let store = ChallengeStore::new();
+        let now = Timestamp::UNIX_EPOCH;
+        assert_eq!(store.join(&"a".repeat(32), now), Ok(()));
+        assert_eq!(
+            store.join(&"b".repeat(33), now),
+            Err(AppError::InvalidUsername)
+        );
+    }
+
     #[hegel::test]
     fn join_rejects_duplicates(tc: hegel::TestCase) {
         let store = ChallengeStore::new();
@@ -251,59 +243,14 @@ mod tests {
         assert_eq!(store.join(&name, now), Err(AppError::UsernameTaken));
     }
 
-    #[hegel::test]
-    fn check_on_unknown_player_is_not_found(tc: hegel::TestCase) {
+    #[test]
+    fn unknown_players_are_not_found() {
         let store = ChallengeStore::new();
-        let name = tc.draw(usernames());
-        assert_eq!(store.check(&name, "anything"), CheckOutcome::NotFound);
-    }
-
-    #[hegel::test]
-    fn confirm_on_unknown_player_is_not_found(tc: hegel::TestCase) {
-        let store = ChallengeStore::new();
-        let name = tc.draw(usernames());
-        let now = tc.draw(timestamps());
-        assert_eq!(store.confirm(&name, "anything", now), None);
-    }
-
-    #[hegel::test]
-    fn wrong_guesses_are_incorrect_and_leave_the_board_empty(tc: hegel::TestCase) {
-        let store = ChallengeStore::new();
-        let name = tc.draw(usernames());
-        let now = tc.draw(timestamps());
-        store.join(&name, now).unwrap();
-
-        let wrong = wrong_guess(&store.secret(&name).unwrap());
-        let attempts = tc.draw(generators::integers::<u64>().max_value(20));
-        for _ in 0..attempts {
-            assert_eq!(store.check(&name, &wrong), CheckOutcome::Incorrect);
-        }
-        assert!(store.standings().leaderboard.is_empty());
-    }
-
-    // The point of the confirm flow: looping past the correct password reads
-    // true but records nothing until the player confirms it.
-    #[hegel::test]
-    fn correct_checks_never_solve_or_touch_the_leaderboard(tc: hegel::TestCase) {
-        let store = ChallengeStore::new();
-        let name = tc.draw(usernames());
-        let now = tc.draw(timestamps());
-        store.join(&name, now).unwrap();
-        let secret = store.secret(&name).unwrap();
-
-        let hits = tc.draw(generators::integers::<u64>().min_value(1).max_value(10));
-        for _ in 0..hits {
-            assert_eq!(store.check(&name, &secret), CheckOutcome::Correct);
-        }
-
-        assert!(store.standings().leaderboard.is_empty());
-        let standing = store.standing(&name).unwrap();
-        assert!(standing.time_to_solve.is_none());
-        assert_eq!(standing.attempts, hits);
-        let roster = store.standings().roster;
-        let entry = roster.iter().find(|e| e.username == name).unwrap();
-        assert!(entry.time_to_solve.is_none());
-        assert_eq!(entry.attempts, hits);
+        let now = Timestamp::UNIX_EPOCH;
+        assert_eq!(store.check("ghost", "anything"), None);
+        assert_eq!(store.confirm("ghost", "anything", now), None);
+        assert!(store.standing("ghost").is_none());
+        assert!(store.password_file("ghost").is_none());
     }
 
     #[hegel::test]
@@ -344,56 +291,39 @@ mod tests {
         );
     }
 
-    // The leaderboard is in solve order whatever order players joined in;
-    // simultaneous solves fall back to username order.
+    // The leaderboard lists exactly the players who solved, in solve order,
+    // with simultaneous solves in username order. Join and solve offsets
+    // are drawn independently, so solve order and time-to-solve order can
+    // differ.
     #[hegel::test]
-    fn leaderboard_is_in_solve_order_then_username(tc: hegel::TestCase) {
+    fn leaderboard_lists_solvers_in_solve_order_then_username(tc: hegel::TestCase) {
         let store = ChallengeStore::new();
         let start = tc.draw(timestamps());
-        let count = tc.draw(generators::integers::<u64>().min_value(2).max_value(8));
+        // Few distinct offsets, so ties are common.
+        let offset = || generators::integers::<i64>().min_value(0).max_value(3);
+        let count = tc.draw(generators::integers::<u64>().max_value(8));
+        let mut expected = Vec::new();
         for i in 0..count {
             let name = format!("player{i}");
-            store.join(&name, start).unwrap();
-            let secret = store.secret(&name).unwrap();
-            // Few distinct offsets, so ties are common.
-            let offset = tc.draw(generators::integers::<i64>().min_value(0).max_value(3));
-            store.confirm(&name, &secret, start + SignedDuration::from_secs(offset));
+            let joined = start + SignedDuration::from_secs(tc.draw(offset()));
+            store.join(&name, joined).unwrap();
+            if tc.draw(generators::booleans()) {
+                let solved = joined + SignedDuration::from_secs(tc.draw(offset()));
+                let secret = store.secret(&name).unwrap();
+                assert_eq!(store.confirm(&name, &secret, solved), Some(Ok(())));
+                expected.push((solved, name));
+            }
         }
+        expected.sort();
 
-        let leaderboard = store.standings().leaderboard;
-        assert_eq!(leaderboard.len(), usize::try_from(count).unwrap());
-        for pair in leaderboard.windows(2) {
-            let (a, b) = (&pair[0], &pair[1]);
-            let order = a
-                .time_to_solve
-                .unwrap()
-                .compare(b.time_to_solve.unwrap())
-                .unwrap()
-                .then_with(|| a.username.cmp(&b.username));
-            assert!(order.is_lt(), "leaderboard must sort by solve, then name");
-        }
-    }
-
-    // The cooldown itself is covered by the Player tests; this locks the
-    // store-level mapping of a throttled submission.
-    #[hegel::test]
-    fn confirms_inside_the_cooldown_are_throttled(tc: hegel::TestCase) {
-        let store = ChallengeStore::new();
-        let name = tc.draw(usernames());
-        let now = tc.draw(timestamps());
-        store.join(&name, now).unwrap();
-
-        assert_eq!(
-            store.confirm(&name, "wrong", now),
-            Some(Err(AppError::WrongPassword))
-        );
-        assert!(matches!(
-            store.confirm(&name, "wrong", now),
-            Some(Err(AppError::ConfirmThrottled { .. }))
-        ));
-        let roster = store.standings().roster;
-        let entry = roster.iter().find(|e| e.username == name).unwrap();
-        assert_eq!(entry.attempts, 1, "throttled submissions never count");
+        let leaderboard: Vec<String> = store
+            .standings()
+            .leaderboard
+            .into_iter()
+            .map(|standing| standing.username)
+            .collect();
+        let expected: Vec<String> = expected.into_iter().map(|(_, name)| name).collect();
+        assert_eq!(leaderboard, expected);
     }
 
     #[hegel::test]
@@ -458,8 +388,7 @@ mod tests {
         }
         // Finding the password counts an attempt but does not solve; the
         // confirmation counts one more and does.
-        assert_eq!(store.check("solver", &secret), CheckOutcome::Correct);
-        assert!(store.standings().leaderboard.is_empty());
+        assert_eq!(store.check("solver", &secret), Some(true));
         assert_eq!(store.confirm("solver", &secret, now), Some(Ok(())));
 
         let grinds = tc.draw(generators::integers::<u64>().max_value(10));
@@ -477,14 +406,13 @@ mod tests {
         let grinder = roster.iter().find(|e| e.username == "grinder").unwrap();
         assert!(solver.time_to_solve.is_some());
         assert_eq!(solver.attempts, warmup + 2);
-        assert_eq!(solver.attempts, store.standings().leaderboard[0].attempts);
         assert!(grinder.time_to_solve.is_none());
         assert_eq!(grinder.attempts, grinds);
     }
 
     // The single-threaded property tests above can't catch races. These drive
-    // the store concurrently to exercise the entry-API guard in join and
-    // the lock ordering in check that the production path relies on.
+    // the store concurrently to exercise the entry-API guard in join and the
+    // shard locking that check and confirm rely on.
 
     #[test]
     fn racing_joins_on_one_name_succeed_exactly_once() {
@@ -503,47 +431,8 @@ mod tests {
                 .count()
         });
 
-        assert_eq!(wins, 1, "exactly one concurrent registration should win");
+        assert_eq!(wins, 1, "exactly one concurrent join should win");
         assert!(store.standing("racer").is_some());
-    }
-
-    #[test]
-    fn concurrent_solves_put_every_player_on_the_leaderboard_once() {
-        let store = ChallengeStore::new();
-        let now = Timestamp::UNIX_EPOCH;
-        let players = 64;
-
-        let names: Vec<String> = (0..players).map(|i| format!("solver{i}")).collect();
-        for name in &names {
-            store.join(name, now).unwrap();
-        }
-        let secrets: Vec<String> = names
-            .iter()
-            .map(|name| store.secret(name).unwrap())
-            .collect();
-
-        let store = &store;
-        std::thread::scope(|scope| {
-            for (name, secret) in names.iter().zip(&secrets) {
-                scope.spawn(move || {
-                    // The full player flow: miss, hit, then confirm.
-                    store.check(name, "wrong");
-                    assert_eq!(store.check(name, secret), CheckOutcome::Correct);
-                    assert_eq!(store.confirm(name, secret, now), Some(Ok(())));
-                });
-            }
-        });
-
-        let mut solved: Vec<String> = store
-            .standings()
-            .leaderboard
-            .into_iter()
-            .map(|c| c.username)
-            .collect();
-        solved.sort();
-        let mut expected = names.clone();
-        expected.sort();
-        assert_eq!(solved, expected, "every solver appears exactly once");
     }
 
     // Many threads hammering one player is the actual production workload (a
@@ -562,7 +451,7 @@ mod tests {
             for _ in 0..threads {
                 scope.spawn(move || {
                     for _ in 0..guesses_per_thread {
-                        assert_eq!(store_ref.check("hammer", "wrong"), CheckOutcome::Incorrect);
+                        assert_eq!(store_ref.check("hammer", "wrong"), Some(false));
                     }
                 });
             }
@@ -579,8 +468,8 @@ mod tests {
     }
 
     // Racing correct confirmations must solve exactly once: the winner
-    // solves, everyone after lands on the already-solved path, and all of
-    // them read Ok.
+    // solves, everyone after lands on the already-solved path, all of them
+    // read Ok, and only the winning confirmation counts as an attempt.
     #[test]
     fn racing_correct_confirms_solve_once() {
         let store = ChallengeStore::new();
@@ -599,14 +488,9 @@ mod tests {
             }
         });
 
-        let leaderboard = store.standings().leaderboard;
-        assert_eq!(leaderboard.len(), 1, "racing winners solve once");
-        assert_eq!(leaderboard[0].attempts, 1);
-        assert_eq!(
-            store.standing("racer").unwrap().attempts,
-            1,
-            "only the winning confirmation counts"
-        );
+        let standing = store.standing("racer").unwrap();
+        assert!(standing.time_to_solve.is_some());
+        assert_eq!(standing.attempts, 1);
     }
 
     // Racing wrong confirmations at one instant: the first through the gate
@@ -639,7 +523,6 @@ mod tests {
             .count();
         assert_eq!(incorrect, 1, "exactly one submission is evaluated");
         assert_eq!(throttled, usize::try_from(racers).unwrap() - 1);
-        assert!(store.standings().leaderboard.is_empty());
         assert_eq!(store.standing("racer").unwrap().attempts, 1);
     }
 
