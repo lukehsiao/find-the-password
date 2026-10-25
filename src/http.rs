@@ -137,7 +137,7 @@ mod tests {
         }
 
         assert!(app.store.get_user("dave").unwrap().solved_at.is_none());
-        assert!(app.store.leaders().is_empty());
+        assert!(app.store.standings().leaderboard.is_empty());
     }
 
     #[tokio::test]

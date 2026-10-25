@@ -25,7 +25,7 @@ use crate::{
     Username, clock,
     error::AppError,
     store,
-    store::ConfirmOutcome,
+    store::{ConfirmOutcome, Standings},
     user::{CONFIRM_COOLDOWN, User},
 };
 
@@ -250,8 +250,10 @@ async fn how_to_play() -> Result<impl View> {
 /// The leaderboard of solves and the roster of every player.
 #[component]
 async fn standings(cx: &Cx) -> Result<impl View> {
-    let leaders = store(cx).leaders();
-    let roster = store(cx).roster();
+    let Standings {
+        leaderboard,
+        roster,
+    } = store(cx).standings();
     Ok(view! {
         <h2>"Leaderboard"</h2>
         <table>
@@ -263,7 +265,7 @@ async fn standings(cx: &Cx) -> Result<impl View> {
                 </tr>
             </thead>
             <tbody>
-                for completion in leaders {
+                for completion in leaderboard {
                     <tr>
                         <td>(completion.username)</td>
                         <td>(format_time_to_solve(completion.time_to_solve))</td>
@@ -385,7 +387,7 @@ mod tests {
         assert_eq!(reply.status, StatusCode::UNPROCESSABLE_ENTITY);
         assert!(reply.body.contains("Username must be 3-32 characters"));
         assert!(reply.body.contains(r#"value="no/slash""#));
-        assert_eq!(app.store.roster(), vec![]);
+        assert_eq!(app.store.standings().roster, vec![]);
     }
 
     #[tokio::test]
@@ -440,7 +442,7 @@ mod tests {
         let reply = app.post_form("/u/bob", &format!("password={secret}")).await;
         assert_eq!(reply.status, StatusCode::SEE_OTHER);
         assert_eq!(reply.header(&header::LOCATION), "/u/bob");
-        assert_eq!(app.store.leaders().len(), 1);
+        assert_eq!(app.store.standings().leaderboard.len(), 1);
 
         let page = app.get("/u/bob").await;
         assert!(page.body.contains("You solved it!"));
@@ -562,7 +564,7 @@ mod tests {
         } else {
             assert_eq!(reply.status, StatusCode::UNPROCESSABLE_ENTITY);
             assert_eq!(input_value(&reply.body, "username"), username);
-            assert_eq!(app.store.roster(), vec![]);
+            assert_eq!(app.store.standings().roster, vec![]);
         }
     }
 

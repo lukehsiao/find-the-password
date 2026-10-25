@@ -33,7 +33,7 @@ pub struct User {
     last_confirm_at: Option<Timestamp>,
 }
 
-/// Represents an entry in the leaderboard
+/// One row of the leaderboard: a player who has solved.
 #[derive(Debug, Clone)]
 pub struct Completion {
     pub username: String,
@@ -57,7 +57,7 @@ pub enum ConfirmResult {
     Throttled,
     Incorrect,
     AlreadySolved,
-    JustSolved(Completion),
+    JustSolved,
 }
 
 impl User {
@@ -140,9 +140,8 @@ impl User {
     /// Apply one confirmation submission, which is what actually solves the
     /// challenge.
     ///
-    /// The first correct confirmation produces the one and only
-    /// [`Completion`]; confirmations after solving still report correctness
-    /// but change nothing.
+    /// The first correct confirmation solves, exactly once; confirmations
+    /// after solving still report correctness but change nothing.
     ///
     /// At most one submission per [`CONFIRM_COOLDOWN`] is evaluated, so this
     /// path cannot be brute-forced like the check URL. Throttled submissions
@@ -167,11 +166,7 @@ impl User {
         self.hits_before_solved += 1;
         if self.check_password(password) {
             self.solved_at = Some(now);
-            ConfirmResult::JustSolved(Completion {
-                username: self.username.clone(),
-                time_to_solve: now - self.created_at,
-                attempts_to_solve: self.hits_before_solved,
-            })
+            ConfirmResult::JustSolved
         } else {
             ConfirmResult::Incorrect
         }
@@ -354,7 +349,7 @@ mod tests {
     }
 
     #[hegel::test]
-    fn correct_confirm_solves_once_and_records_the_completion(tc: hegel::TestCase) {
+    fn correct_confirm_solves_exactly_once(tc: hegel::TestCase) {
         let created = tc.draw(timestamps());
         let name = tc.draw(usernames());
         let mut user = User::new(name, created);
@@ -380,17 +375,12 @@ mod tests {
 
         let gap = tc.draw(generators::integers::<i64>().min_value(10).max_value(3600));
         let solved_at = now.checked_add(SignedDuration::from_secs(gap)).unwrap();
-        match user.confirm(&secret, solved_at) {
-            ConfirmResult::JustSolved(completion) => {
-                assert_eq!(completion.attempts_to_solve, checks + confirms + 1);
-                // Span has no PartialEq; compare as fixed-unit durations.
-                assert_eq!(
-                    completion.time_to_solve.fieldwise(),
-                    (solved_at - created).fieldwise()
-                );
-            }
-            other => panic!("expected JustSolved, got {other:?}"),
-        }
+        assert!(matches!(
+            user.confirm(&secret, solved_at),
+            ConfirmResult::JustSolved
+        ));
+        assert_eq!(user.solved_at, Some(solved_at));
+        assert_eq!(user.hits_before_solved, checks + confirms + 1);
 
         // Checks and confirmations after solving report correctness but
         // never change the record.
@@ -518,7 +508,7 @@ mod tests {
         let at = created.checked_add(CONFIRM_COOLDOWN).unwrap();
         assert!(matches!(
             user.confirm(&secret, at),
-            ConfirmResult::JustSolved(_)
+            ConfirmResult::JustSolved
         ));
         assert_eq!(user.hits_before_solved, 2);
     }

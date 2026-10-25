@@ -1,4 +1,4 @@
-use std::sync::{Arc, LazyLock, Mutex};
+use std::sync::{Arc, LazyLock};
 
 use dashmap::{DashMap, Entry};
 use jiff::Timestamp;
@@ -27,16 +27,24 @@ pub enum ConfirmOutcome {
     Confirmed,
 }
 
+/// The leaderboard and the roster, read together in one pass.
+#[derive(Debug, Clone)]
+pub struct Standings {
+    /// Players who have solved, in solve order (username as tiebreak).
+    pub leaderboard: Vec<Completion>,
+    /// Every player, by attempts descending (username as tiebreak).
+    pub roster: Vec<RosterEntry>,
+}
+
 /// In-memory store of all challenge state.
 ///
-/// This is the one interface over the user map and the leaderboard; the
-/// route and page handlers stay thin adapters over it. Cloning is cheap (two
-/// `Arc`s), and constructing one is the entire test setup. Timestamps are
-/// passed in by callers so the store itself never touches the clock.
+/// This is the one interface over the players; the route and page handlers
+/// stay thin adapters over it. Cloning is cheap (one `Arc`), and
+/// constructing one is the entire test setup. Timestamps are passed in by
+/// callers so the store itself never touches the clock.
 #[derive(Debug, Clone, Default)]
 pub struct ChallengeStore {
     users: Arc<DashMap<String, User>>,
-    leaderboard: Arc<Mutex<Vec<Completion>>>,
 }
 
 impl ChallengeStore {
@@ -99,70 +107,63 @@ impl ChallengeStore {
     }
 
     /// Record one confirmation submission. The first correct confirmation
-    /// solves the challenge and pushes exactly one [`Completion`] onto the
-    /// leaderboard; correct confirmations after that stay `Confirmed`.
-    ///
-    /// # Panics
-    /// If the leaderboard mutex is poisoned, which means another thread
-    /// already panicked; crashing beats serving a corrupt leaderboard.
+    /// solves the challenge; correct confirmations after that stay
+    /// `Confirmed`.
     pub fn confirm(&self, username: &str, password: &str, now: Timestamp) -> ConfirmOutcome {
-        // Resolve the attempt before touching the leaderboard so the user
-        // shard lock and the leaderboard mutex are never held together.
-        let result = match self.users.get_mut(username) {
+        // Log after the shard guard drops, so checks on this shard never
+        // wait on log output.
+        let (result, attempts) = match self.users.get_mut(username) {
             None => return ConfirmOutcome::NotFound,
-            Some(mut user) => user.confirm(password, now),
+            Some(mut user) => (user.confirm(password, now), user.hits_before_solved),
         };
         match result {
             ConfirmResult::Throttled => ConfirmOutcome::Throttled,
             ConfirmResult::Incorrect => ConfirmOutcome::Incorrect,
             ConfirmResult::AlreadySolved => ConfirmOutcome::Confirmed,
-            ConfirmResult::JustSolved(completion) => {
-                info!(username, attempts = completion.attempts_to_solve, "solved");
-                self.leaderboard
-                    .lock()
-                    .expect("leaderboard mutex poisoned")
-                    .push(completion);
+            ConfirmResult::JustSolved => {
+                info!(username, attempts, "solved");
                 ConfirmOutcome::Confirmed
             }
         }
     }
 
-    /// Everyone who has solved the challenge, in order of completion.
+    /// The leaderboard and the roster from one walk over the players, so
+    /// the two always agree.
     ///
-    /// # Panics
-    /// If the leaderboard mutex is poisoned, which means another thread
-    /// already panicked; crashing beats serving a corrupt leaderboard.
-    #[must_use]
-    pub fn leaders(&self) -> Vec<Completion> {
-        self.leaderboard
-            .lock()
-            .expect("leaderboard mutex poisoned")
-            .clone()
-    }
-
-    /// Every registered user with their attempt count so far, sorted by
-    /// attempts descending (username ascending as tiebreak).
-    ///
-    /// Iteration takes each shard's read lock briefly; the sort happens
+    /// Iteration takes each shard's read lock briefly; the sorts happen
     /// after all guards are dropped, so the check path is never stalled
-    /// behind it.
+    /// behind them.
     #[must_use]
-    pub fn roster(&self) -> Vec<RosterEntry> {
-        let mut entries: Vec<RosterEntry> = self
-            .users
-            .iter()
-            .map(|user| RosterEntry {
+    pub fn standings(&self) -> Standings {
+        let mut solves = Vec::new();
+        let mut roster = Vec::with_capacity(self.users.len());
+        for user in self.users.iter() {
+            if let Some(solved_at) = user.solved_at {
+                let completion = Completion {
+                    username: user.username.clone(),
+                    time_to_solve: solved_at - user.created_at,
+                    attempts_to_solve: user.hits_before_solved,
+                };
+                solves.push((solved_at, completion));
+            }
+            roster.push(RosterEntry {
                 username: user.username.clone(),
                 attempts: user.hits_before_solved,
                 solved: user.solved_at.is_some(),
-            })
-            .collect();
-        entries.sort_unstable_by(|a, b| {
+            });
+        }
+        solves.sort_unstable_by(|(a_at, a), (b_at, b)| {
+            a_at.cmp(b_at).then_with(|| a.username.cmp(&b.username))
+        });
+        roster.sort_unstable_by(|a, b| {
             b.attempts
                 .cmp(&a.attempts)
                 .then_with(|| a.username.cmp(&b.username))
         });
-        entries
+        Standings {
+            leaderboard: solves.into_iter().map(|(_, c)| c).collect(),
+            roster,
+        }
     }
 }
 
@@ -185,7 +186,7 @@ mod tests {
     use hegel::extras::jiff as jiff_gs;
     use hegel::generators::{self, PrintableGenerator};
 
-    use jiff::Timestamp;
+    use jiff::{SignedDuration, Timestamp};
 
     use super::{AppError, ChallengeStore, CheckOutcome, ConfirmOutcome, valid_username};
 
@@ -298,7 +299,7 @@ mod tests {
         for _ in 0..attempts {
             assert_eq!(store.check(&name, &wrong), CheckOutcome::Incorrect);
         }
-        assert!(store.leaders().is_empty());
+        assert!(store.standings().leaderboard.is_empty());
     }
 
     // The point of the confirm flow: looping past the correct password reads
@@ -316,20 +317,20 @@ mod tests {
             assert_eq!(store.check(&name, &secret), CheckOutcome::Correct);
         }
 
-        assert!(store.leaders().is_empty());
+        assert!(store.standings().leaderboard.is_empty());
         assert!(store.get_user(&name).unwrap().solved_at.is_none());
-        let roster = store.roster();
+        let roster = store.standings().roster;
         let entry = roster.iter().find(|e| e.username == name).unwrap();
         assert!(!entry.solved);
         assert_eq!(entry.attempts, hits);
     }
 
     #[hegel::test]
-    fn first_correct_confirm_records_exactly_one_completion(tc: hegel::TestCase) {
+    fn first_correct_confirm_puts_one_solve_on_the_leaderboard(tc: hegel::TestCase) {
         let store = ChallengeStore::new();
         let name = tc.draw(usernames());
-        let now = tc.draw(timestamps());
-        store.add_user(&name, now).unwrap();
+        let joined = tc.draw(timestamps());
+        store.add_user(&name, joined).unwrap();
         let secret = store.get_user(&name).unwrap().secret;
         let wrong = format!("{secret}-nope");
 
@@ -338,23 +339,63 @@ mod tests {
             store.check(&name, &wrong);
         }
 
+        let elapsed = tc.draw(
+            generators::integers::<i64>()
+                .min_value(0)
+                .max_value(86_400 * 30),
+        );
+        let solved = joined + SignedDuration::from_secs(elapsed);
         assert_eq!(
-            store.confirm(&name, &secret, now),
+            store.confirm(&name, &secret, solved),
             ConfirmOutcome::Confirmed
         );
         // Extra guesses after solving must not grow or change the
         // leaderboard; a repeated correct confirmation stays Confirmed.
         assert_eq!(
-            store.confirm(&name, &secret, now),
+            store.confirm(&name, &secret, solved),
             ConfirmOutcome::Confirmed
         );
         store.check(&name, &secret);
         store.check(&name, &wrong);
 
-        let leaders = store.leaders();
-        assert_eq!(leaders.len(), 1);
-        assert_eq!(leaders[0].username, name);
-        assert_eq!(leaders[0].attempts_to_solve, warmup + 1);
+        let leaderboard = store.standings().leaderboard;
+        assert_eq!(leaderboard.len(), 1);
+        assert_eq!(leaderboard[0].username, name);
+        assert_eq!(leaderboard[0].attempts_to_solve, warmup + 1);
+        // Span has no PartialEq; compare as fixed-unit durations.
+        assert_eq!(
+            leaderboard[0].time_to_solve.fieldwise(),
+            (solved - joined).fieldwise()
+        );
+    }
+
+    // The leaderboard is in solve order whatever order players joined in;
+    // simultaneous solves fall back to username order.
+    #[hegel::test]
+    fn leaderboard_is_in_solve_order_then_username(tc: hegel::TestCase) {
+        let store = ChallengeStore::new();
+        let start = tc.draw(timestamps());
+        let count = tc.draw(generators::integers::<u64>().min_value(2).max_value(8));
+        for i in 0..count {
+            let name = format!("player{i}");
+            store.add_user(&name, start).unwrap();
+            let secret = store.get_user(&name).unwrap().secret;
+            // Few distinct offsets, so ties are common.
+            let offset = tc.draw(generators::integers::<i64>().min_value(0).max_value(3));
+            store.confirm(&name, &secret, start + SignedDuration::from_secs(offset));
+        }
+
+        let leaderboard = store.standings().leaderboard;
+        assert_eq!(leaderboard.len(), usize::try_from(count).unwrap());
+        for pair in leaderboard.windows(2) {
+            let (a, b) = (&pair[0], &pair[1]);
+            let order = a
+                .time_to_solve
+                .compare(b.time_to_solve)
+                .unwrap()
+                .then_with(|| a.username.cmp(&b.username));
+            assert!(order.is_lt(), "leaderboard must sort by solve, then name");
+        }
     }
 
     // The cooldown itself is covered by the User tests; this locks the
@@ -374,7 +415,7 @@ mod tests {
             store.confirm(&name, "wrong", now),
             ConfirmOutcome::Throttled
         );
-        let roster = store.roster();
+        let roster = store.standings().roster;
         let entry = roster.iter().find(|e| e.username == name).unwrap();
         assert_eq!(entry.attempts, 1, "throttled submissions never count");
     }
@@ -389,7 +430,12 @@ mod tests {
             store.add_user(name, now).unwrap();
         }
 
-        let mut listed: Vec<String> = store.roster().into_iter().map(|e| e.username).collect();
+        let mut listed: Vec<String> = store
+            .standings()
+            .roster
+            .into_iter()
+            .map(|e| e.username)
+            .collect();
         listed.sort();
         let mut expected = names.clone();
         expected.sort();
@@ -410,7 +456,7 @@ mod tests {
             }
         }
 
-        let roster = store.roster();
+        let roster = store.standings().roster;
         assert_eq!(roster.len(), usize::try_from(count).unwrap());
         for pair in roster.windows(2) {
             let (a, b) = (&pair[0], &pair[1]);
@@ -437,7 +483,7 @@ mod tests {
         // Finding the password counts an attempt but does not solve; the
         // confirmation counts one more and does.
         assert_eq!(store.check("solver", &secret), CheckOutcome::Correct);
-        assert!(store.leaders().is_empty());
+        assert!(store.standings().leaderboard.is_empty());
         assert_eq!(
             store.confirm("solver", &secret, now),
             ConfirmOutcome::Confirmed
@@ -453,12 +499,15 @@ mod tests {
         store.check("solver", &wrong);
         store.confirm("solver", &secret, now);
 
-        let roster = store.roster();
+        let roster = store.standings().roster;
         let solver = roster.iter().find(|e| e.username == "solver").unwrap();
         let grinder = roster.iter().find(|e| e.username == "grinder").unwrap();
         assert!(solver.solved);
         assert_eq!(solver.attempts, warmup + 2);
-        assert_eq!(solver.attempts, store.leaders()[0].attempts_to_solve);
+        assert_eq!(
+            solver.attempts,
+            store.standings().leaderboard[0].attempts_to_solve
+        );
         assert!(!grinder.solved);
         assert_eq!(grinder.attempts, grinds);
     }
@@ -489,7 +538,7 @@ mod tests {
     }
 
     #[test]
-    fn concurrent_solves_record_one_completion_per_user() {
+    fn concurrent_solves_put_every_player_on_the_leaderboard_once() {
         let store = ChallengeStore::new();
         let now = Timestamp::UNIX_EPOCH;
         let users = 64;
@@ -515,11 +564,16 @@ mod tests {
             }
         });
 
-        let mut solved: Vec<String> = store.leaders().into_iter().map(|c| c.username).collect();
+        let mut solved: Vec<String> = store
+            .standings()
+            .leaderboard
+            .into_iter()
+            .map(|c| c.username)
+            .collect();
         solved.sort();
         let mut expected = names.clone();
         expected.sort();
-        assert_eq!(solved, expected, "every solver recorded exactly once");
+        assert_eq!(solved, expected, "every solver appears exactly once");
     }
 
     // Many threads hammering one user is the actual production workload (a
@@ -548,20 +602,20 @@ mod tests {
             store.confirm("hammer", &secret, now),
             ConfirmOutcome::Confirmed
         );
-        let leaders = store.leaders();
-        assert_eq!(leaders.len(), 1);
+        let leaderboard = store.standings().leaderboard;
+        assert_eq!(leaderboard.len(), 1);
         assert_eq!(
-            leaders[0].attempts_to_solve,
+            leaderboard[0].attempts_to_solve,
             threads * guesses_per_thread + 1,
             "every wrong guess must be counted exactly once"
         );
     }
 
-    // Racing correct confirmations must produce exactly one Completion:
-    // the winner solves, everyone after lands on the AlreadySolved path,
-    // and all of them read Confirmed.
+    // Racing correct confirmations must solve exactly once: the winner
+    // solves, everyone after lands on the AlreadySolved path, and all of
+    // them read Confirmed.
     #[test]
-    fn racing_correct_confirms_record_one_completion() {
+    fn racing_correct_confirms_solve_once() {
         let store = ChallengeStore::new();
         let now = Timestamp::UNIX_EPOCH;
         store.add_user("racer", now).unwrap();
@@ -581,9 +635,9 @@ mod tests {
             }
         });
 
-        let leaders = store.leaders();
-        assert_eq!(leaders.len(), 1, "racing winners record one completion");
-        assert_eq!(leaders[0].attempts_to_solve, 1);
+        let leaderboard = store.standings().leaderboard;
+        assert_eq!(leaderboard.len(), 1, "racing winners solve once");
+        assert_eq!(leaderboard[0].attempts_to_solve, 1);
         assert_eq!(
             store.get_user("racer").unwrap().hits_before_solved,
             1,
@@ -621,7 +675,7 @@ mod tests {
             .count();
         assert_eq!(incorrect, 1, "exactly one submission is evaluated");
         assert_eq!(throttled, usize::try_from(racers).unwrap() - 1);
-        assert!(store.leaders().is_empty());
+        assert!(store.standings().leaderboard.is_empty());
         assert_eq!(store.get_user("racer").unwrap().hits_before_solved, 1);
     }
 
@@ -647,7 +701,7 @@ mod tests {
 
             let mut last = 0;
             for _ in 0..50 {
-                let roster = store_ref.roster();
+                let roster = store_ref.standings().roster;
                 let entry = roster.iter().find(|e| e.username == "hammer").unwrap();
                 assert!(!entry.solved);
                 assert!(
@@ -658,7 +712,7 @@ mod tests {
             }
         });
 
-        let roster = store.roster();
+        let roster = store.standings().roster;
         assert_eq!(roster.len(), 1);
         assert_eq!(
             roster[0].attempts,
