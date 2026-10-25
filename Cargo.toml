@@ -15,7 +15,6 @@ dashmap = "6.2.1"
 jiff = "0.2.38"
 mimalloc = "0.1"
 rand = { version = "0.10.3", default-features = false, features = ["std_rng"] }
-regex = "1.13.1"
 serde = { version = "1.0.229", features = ["derive"] }
 thiserror = "2"
 tokio = { version = "1", features = ["macros", "net", "rt-multi-thread", "time"] }

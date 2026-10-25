@@ -1,5 +1,11 @@
-//! In-process HTTP harness shared by the route and page tests.
+//! Helpers shared across the test modules: the in-process HTTP harness and
+//! the generators for the domain's inputs.
 
+use hegel::{
+    extras::jiff as jiff_gs,
+    generators::{self, PrintableGenerator},
+};
+use jiff::Timestamp;
 use topcoat::router::{
     HeaderMap, Method, Router, StatusCode, header,
     request::{Bytes, Request},
@@ -7,6 +13,25 @@ use topcoat::router::{
 };
 
 use crate::{clock::Clock, router, store::ChallengeStore};
+
+/// Usernames the challenge accepts.
+pub(crate) fn usernames() -> impl PrintableGenerator<String> {
+    generators::from_regex(r"[a-zA-Z0-9._-]{3,32}").fullmatch(true)
+}
+
+/// Instants bound to 2000..2090, so the millisecond seed math and the
+/// solve-time offsets tests add can never overflow; the logic doesn't care
+/// about the era.
+pub(crate) fn timestamps() -> impl PrintableGenerator<Timestamp> {
+    let min = Timestamp::from_second(946_684_800).unwrap();
+    let max = Timestamp::from_second(3_786_825_600).unwrap();
+    jiff_gs::timestamps().min_value(min).max_value(max)
+}
+
+/// A guaranteed-wrong guess: longer than any 32-character secret.
+pub(crate) fn wrong_guess(secret: &str) -> String {
+    format!("{secret}-nope")
+}
 
 /// The production router over a fresh store and a nulled clock, driven
 /// without a socket.

@@ -187,29 +187,12 @@ impl Player {
 
 #[cfg(test)]
 mod tests {
-    use hegel::extras::jiff as jiff_gs;
-    use hegel::generators::{self, PrintableGenerator};
+    use hegel::generators;
     use jiff::SignedDuration;
     use rand::{RngExt, SeedableRng, distr::Alphanumeric, rngs::StdRng};
 
     use super::{AppError, CONFIRM_COOLDOWN, NUM_PASSWORDS, OFFSET, PASS_LEN, Player, Timestamp};
-
-    fn usernames() -> impl PrintableGenerator<String> {
-        generators::from_regex(r"[a-zA-Z0-9._-]{3,32}").fullmatch(true)
-    }
-
-    // Bound to 2000..2090 so the millisecond seed math and the solve-time
-    // offsets below can never overflow; the logic doesn't care about the era.
-    fn timestamps() -> impl PrintableGenerator<Timestamp> {
-        let min = Timestamp::from_second(946_684_800).unwrap();
-        let max = Timestamp::from_second(3_786_825_600).unwrap();
-        jiff_gs::timestamps().min_value(min).max_value(max)
-    }
-
-    // A guaranteed-wrong guess: longer than any 32-char secret.
-    fn wrong_guess(secret: &str) -> String {
-        format!("{secret}-nope")
-    }
+    use crate::testing::{timestamps, usernames, wrong_guess};
 
     fn player(tc: &hegel::TestCase) -> Player {
         Player::new(tc.draw(usernames()), tc.draw(timestamps()))

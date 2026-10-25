@@ -362,7 +362,7 @@ mod tests {
     use jiff::SignedDuration;
     use topcoat::router::{StatusCode, header};
 
-    use crate::testing::{TestApp, form};
+    use crate::testing::{TestApp, form, usernames};
 
     #[tokio::test]
     async fn joining_redirects_to_the_new_players_page() {
@@ -539,14 +539,14 @@ mod tests {
 
     // Whatever a player types is either registered and sent to a page that
     // names it, or rejected with 422 and handed back intact in the form so
-    // they can fix it. The oracle is the documented rule, not the regex:
-    // 3-32 URL-unreserved ASCII characters.
+    // they can fix it. The oracle is the documented rule: 3-32
+    // URL-unreserved ASCII characters.
     #[tokio::test]
     #[hegel::test]
     async fn joining_accepts_exactly_the_documented_usernames(tc: hegel::TestCase) {
         let app = TestApp::new();
         let username = if tc.draw(generators::booleans()) {
-            tc.draw(generators::from_regex(r"[a-zA-Z0-9._-]{3,32}").fullmatch(true))
+            tc.draw(usernames())
         } else {
             tc.draw(generators::text())
         };

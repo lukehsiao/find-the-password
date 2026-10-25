@@ -1,8 +1,7 @@
-use std::sync::{Arc, LazyLock};
+use std::sync::Arc;
 
 use dashmap::{DashMap, Entry};
 use jiff::Timestamp;
-use regex::Regex;
 use tracing::info;
 
 use crate::{
@@ -161,78 +160,73 @@ impl ChallengeStore {
     }
 }
 
-/// Enforce that a username is 3-32 ASCII letters, digits, hyphens, periods,
-/// or underscores.
+/// Whether `username` is 3-32 ASCII letters, digits, hyphens, periods, or
+/// underscores.
 ///
 /// Usernames are spliced verbatim into URL paths (`/u/{username}/...`), so
 /// every allowed character must be URL-unreserved (RFC 3986). The 3-character
 /// minimum also keeps out `.` and `..`, the only names a client would
 /// collapse as path dot-segments before the request ever reaches the router.
-#[must_use]
-pub fn valid_username(username: &str) -> bool {
-    static RE: LazyLock<Regex> =
-        LazyLock::new(|| Regex::new(r"^[a-zA-Z0-9._-]{3,32}$").expect("username pattern is valid"));
-    RE.is_match(username)
+fn valid_username(username: &str) -> bool {
+    (3..=32).contains(&username.len())
+        && username
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'-' | b'.' | b'_'))
 }
 
 #[cfg(test)]
 mod tests {
-    use hegel::extras::jiff as jiff_gs;
-    use hegel::generators::{self, PrintableGenerator};
-
+    use hegel::generators;
     use jiff::{SignedDuration, Timestamp};
 
-    use super::{AppError, ChallengeStore, CheckOutcome, valid_username};
-
-    fn usernames() -> impl PrintableGenerator<String> {
-        generators::from_regex(r"[a-zA-Z0-9._-]{3,32}").fullmatch(true)
-    }
-
-    fn timestamps() -> impl PrintableGenerator<Timestamp> {
-        let min = Timestamp::from_second(946_684_800).unwrap();
-        let max = Timestamp::from_second(3_786_825_600).unwrap();
-        jiff_gs::timestamps().min_value(min).max_value(max)
-    }
+    use super::{AppError, ChallengeStore, CheckOutcome};
+    use crate::testing::{timestamps, usernames, wrong_guess};
 
     #[hegel::test]
-    fn valid_username_accepts_well_formed_names(tc: hegel::TestCase) {
+    fn join_accepts_well_formed_names(tc: hegel::TestCase) {
+        let store = ChallengeStore::new();
         let name = tc.draw(usernames());
-        assert!(valid_username(&name));
+        assert_eq!(store.join(&name, tc.draw(timestamps())), Ok(()));
     }
 
     #[hegel::test]
-    fn valid_username_rejects_too_short(tc: hegel::TestCase) {
-        let name = tc.draw(generators::from_regex(r"[a-zA-Z0-9._-]{0,2}").fullmatch(true));
-        assert!(!valid_username(&name));
-    }
-
-    #[hegel::test]
-    fn valid_username_rejects_too_long(tc: hegel::TestCase) {
-        let name = tc.draw(generators::from_regex(r"[a-zA-Z0-9._-]{33,64}").fullmatch(true));
-        assert!(!valid_username(&name));
-    }
-
-    #[hegel::test]
-    fn valid_username_rejects_forbidden_characters(tc: hegel::TestCase) {
-        // A run of valid chars with one disallowed character spliced in.
-        let name = tc.draw(
-            generators::from_regex(r"[a-zA-Z0-9._-]{1,15}[^a-zA-Z0-9._-][a-zA-Z0-9._-]{1,15}")
-                .fullmatch(true),
+    fn join_rejects_names_shorter_than_3_or_longer_than_32(tc: hegel::TestCase) {
+        let store = ChallengeStore::new();
+        let pattern = if tc.draw(generators::booleans()) {
+            r"[a-zA-Z0-9._-]{0,2}"
+        } else {
+            r"[a-zA-Z0-9._-]{33,64}"
+        };
+        let name = tc.draw(generators::from_regex(pattern).fullmatch(true));
+        assert_eq!(
+            store.join(&name, tc.draw(timestamps())),
+            Err(AppError::InvalidUsername)
         );
-        assert!(!valid_username(&name));
     }
 
-    // The regex is the implementation, so check it against a plain character
-    // walk. This catches character-class slips like an unescaped `-` forming
-    // a range that would silently admit `/` and other URL-reserved characters.
+    // One character outside the allowed set, anywhere in an otherwise valid
+    // name, is enough to reject it. Half the draws take the character from
+    // printable ASCII, where URL-reserved characters like `/` and `?` live
+    // and a broad class alone would rarely land.
     #[hegel::test]
-    fn valid_username_agrees_with_a_character_walk(tc: hegel::TestCase) {
-        let name = tc.draw(generators::from_regex(r"[ -~]{0,40}").fullmatch(true));
-        let expected = (3..=32).contains(&name.len())
-            && name
-                .bytes()
-                .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'-' | b'.' | b'_'));
-        assert_eq!(valid_username(&name), expected);
+    fn join_rejects_any_other_character(tc: hegel::TestCase) {
+        let store = ChallengeStore::new();
+        let other = if tc.draw(generators::booleans()) {
+            r"[ -,/:-@\[-\^`{-~]"
+        } else {
+            r"[^a-zA-Z0-9._-]"
+        };
+        let part = || generators::from_regex(r"[a-zA-Z0-9._-]{1,15}").fullmatch(true);
+        let name = format!(
+            "{}{}{}",
+            tc.draw(part()),
+            tc.draw(generators::from_regex(other).fullmatch(true)),
+            tc.draw(part())
+        );
+        assert_eq!(
+            store.join(&name, tc.draw(timestamps())),
+            Err(AppError::InvalidUsername)
+        );
     }
 
     // Usernames become URL path segments, so the names a client would
@@ -240,10 +234,12 @@ mod tests {
     // guarantees this; `...` and friends are ordinary segments and are fine.
     #[test]
     fn dot_segment_names_stay_invalid() {
-        assert!(!valid_username("."));
-        assert!(!valid_username(".."));
-        assert!(valid_username("..."));
-        assert!(valid_username("a.b-c_d"));
+        let store = ChallengeStore::new();
+        let now = Timestamp::UNIX_EPOCH;
+        assert_eq!(store.join(".", now), Err(AppError::InvalidUsername));
+        assert_eq!(store.join("..", now), Err(AppError::InvalidUsername));
+        assert_eq!(store.join("...", now), Ok(()));
+        assert_eq!(store.join("a.b-c_d", now), Ok(()));
     }
 
     #[hegel::test]
@@ -253,14 +249,6 @@ mod tests {
         let now = tc.draw(timestamps());
         assert_eq!(store.join(&name, now), Ok(()));
         assert_eq!(store.join(&name, now), Err(AppError::UsernameTaken));
-    }
-
-    #[hegel::test]
-    fn join_rejects_invalid_names(tc: hegel::TestCase) {
-        let store = ChallengeStore::new();
-        let name = tc.draw(generators::from_regex(r"[a-zA-Z0-9._-]{0,2}").fullmatch(true));
-        let now = tc.draw(timestamps());
-        assert_eq!(store.join(&name, now), Err(AppError::InvalidUsername));
     }
 
     #[hegel::test]
@@ -285,7 +273,7 @@ mod tests {
         let now = tc.draw(timestamps());
         store.join(&name, now).unwrap();
 
-        let wrong = format!("{}-nope", store.secret(&name).unwrap());
+        let wrong = wrong_guess(&store.secret(&name).unwrap());
         let attempts = tc.draw(generators::integers::<u64>().max_value(20));
         for _ in 0..attempts {
             assert_eq!(store.check(&name, &wrong), CheckOutcome::Incorrect);
@@ -325,7 +313,7 @@ mod tests {
         let joined = tc.draw(timestamps());
         store.join(&name, joined).unwrap();
         let secret = store.secret(&name).unwrap();
-        let wrong = format!("{secret}-nope");
+        let wrong = wrong_guess(&secret);
 
         let warmup = tc.draw(generators::integers::<u64>().max_value(10));
         for _ in 0..warmup {
@@ -462,7 +450,7 @@ mod tests {
         store.join("solver", now).unwrap();
         store.join("grinder", now).unwrap();
         let secret = store.secret("solver").unwrap();
-        let wrong = format!("{secret}-nope");
+        let wrong = wrong_guess(&secret);
 
         let warmup = tc.draw(generators::integers::<u64>().max_value(10));
         for _ in 0..warmup {
