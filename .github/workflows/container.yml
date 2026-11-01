@@ -3,10 +3,17 @@ on:
   push:
     branches:
       - main
+# Never cancel a run that is pushing an image. A newer waiting run may replace
+# an older waiting one, which is fine because only :latest is published.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
 permissions: {}
 jobs:
   docker:
     runs-on: ubuntu-latest
+    # Builds take under 2 minutes. 15 stops a hung build early.
+    timeout-minutes: 15
     permissions:
       contents: read
       packages: write
