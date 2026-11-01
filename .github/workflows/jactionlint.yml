@@ -1,0 +1,36 @@
+name: jactionlint
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+permissions: {}
+
+# Group by pull request so a new push cancels only older runs of that pull
+# request. On main, group by commit so every commit gets its own result.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: true
+
+jobs:
+  jactionlint:
+    name: Run jactionlint
+    runs-on: ubuntu-latest
+    # A local run takes seconds. 10 leaves room for the online checks, which
+    # call the GitHub API.
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: jdx/jactionlint@baa8d685e2b27ff5821558c9eeabb2051c1da61b # v2.4.0
+        with:
+          # Ask GitHub about impostor commits, ref confusion and known
+          # vulnerable actions.
+          online: true

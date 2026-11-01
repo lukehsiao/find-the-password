@@ -11,6 +11,9 @@ pnpm = "latest"
 # Keep in lockstep with the topcoat dependency in Cargo.toml.
 "cargo:topcoat-cli" = "0.10.0"
 just = "latest"
+jactionlint = "latest"
+# jactionlint uses shellcheck to check the scripts of run steps.
+shellcheck = "latest"
 
 [env]
 # Skip the browser download and point Playwright at the system Chromium.
