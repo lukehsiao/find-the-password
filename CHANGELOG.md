@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.5.1
+
+### Patch Changes
+
+- [`c790640`](https://github.com/lukehsiao/find-the-password/commit/c790640c288849cfb10a4163036aefbfad9559fd) - **refactor**: the server now runs on [Topcoat](https://github.com/tokio-rs/topcoat) 0.12 and needs Rust 1.99 or later to build. Each page's `<head>` now also carries `og:type`, `og:title`, and `twitter:card` tags, so shared links preview with the page title. Every route and status, and every plain-text response body, is unchanged.
+
+<pre>
+$ git-stats v0.5.0..v0.5.1
+Author           Commits  Changed Files  Insertions  Deletions  Net Δ
+Luke Hsiao             4             22        +395       -367    +28
+dependabot[bot]        3             10         +19        -19      0
+Total                  7             32        +414       -386    +28
+</pre>
+
 ## 0.5.0
 
 ### Minor Changes
