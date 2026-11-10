@@ -12,13 +12,13 @@ use topcoat::{
     },
 };
 
-use crate::{Username, store};
+use crate::{store, username};
 
 path_param!(pub password);
 
 /// Simple healthcheck endpoint.
 #[route(GET "/up")]
-pub async fn healthcheck() -> Result<StatusCode> {
+pub async fn healthcheck(cx: &Cx) -> Result<StatusCode> {
     Ok(StatusCode::OK)
 }
 
@@ -29,13 +29,13 @@ pub async fn healthcheck() -> Result<StatusCode> {
 /// response already carries `text/plain; charset=utf-8`, which is what
 /// robots.txt requires.
 #[route(GET "/robots.txt")]
-pub async fn robots_txt() -> Result<&'static str> {
+pub async fn robots_txt(cx: &Cx) -> Result<&'static str> {
     Ok("User-agent: *\nDisallow: /\n")
 }
 
 /// The site icon, compiled into the binary so the server is one file.
 #[route(GET "/favicon.ico")]
-pub async fn favicon() -> Result<([(HeaderName, HeaderValue); 1], &'static [u8])> {
+pub async fn favicon(cx: &Cx) -> Result<([(HeaderName, HeaderValue); 1], &'static [u8])> {
     Ok((
         [(CONTENT_TYPE, HeaderValue::from_static("image/x-icon"))],
         include_bytes!("../public/favicon.ico"),
@@ -50,7 +50,7 @@ pub async fn favicon() -> Result<([(HeaderName, HeaderValue); 1], &'static [u8])
 pub async fn check_password(cx: &Cx) -> Result<&'static str> {
     // Unparsed path parameters borrow the router's decoded captures, so the
     // hottest route in the app allocates nothing of its own.
-    match store(cx).check(path_param::<Username>(cx), path_param::<Password>(cx)) {
+    match store(cx).check(username(cx), password(cx)) {
         None => Err(not_found().into()),
         Some(false) => Ok("false"),
         Some(true) => Ok("true"),
@@ -60,9 +60,7 @@ pub async fn check_password(cx: &Cx) -> Result<&'static str> {
 /// Produce a player's password file.
 #[route(GET "/u/{username}/passwords.txt")]
 pub async fn passwords_txt(cx: &Cx) -> Result<String> {
-    Ok(store(cx)
-        .password_file(path_param::<Username>(cx))
-        .ok_or_not_found()?)
+    Ok(store(cx).password_file(username(cx)).ok_or_not_found()?)
 }
 
 // The kid-facing HTTP contract, driven through the production router. These

@@ -9,7 +9,7 @@ pub mod store;
 mod testing;
 
 use topcoat::{
-    context::{BaseUrl, Cx, app_context},
+    context::{BaseUrl, Cx, context},
     router::{Compression, CompressionLevel, Router, path_param},
 };
 
@@ -37,23 +37,23 @@ pub fn router(store: ChallengeStore, clock: Clock, base_url: BaseUrl) -> Router 
         .route(http::healthcheck)
         .route(http::robots_txt)
         .route(http::favicon)
-        .app_context(store)
-        .app_context(clock)
-        .base_url(base_url)
+        .with(store)
+        .with(clock)
+        .with(base_url)
         // The only response big enough to matter is passwords.txt, 2MB of
         // random base62 that compresses about 25% at any level. The default
         // level spends 4x the CPU of Fastest on gzip and 2x on brotli, for
         // output at most 1.5% smaller.
-        .compression(Compression::new().level(CompressionLevel::Fastest))
+        .with(Compression::default().level(CompressionLevel::Fastest))
         .build()
 }
 
 /// The store every handler reads and writes.
 fn store(cx: &Cx) -> &ChallengeStore {
-    app_context(cx)
+    context(cx)
 }
 
 /// The clock every handler stamps state changes with.
 fn clock(cx: &Cx) -> &Clock {
-    app_context(cx)
+    context(cx)
 }

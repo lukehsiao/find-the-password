@@ -11,38 +11,38 @@ use serde::Deserialize;
 use topcoat::{
     Result,
     context::{Cx, base_url},
+    metadata::Metadata,
     router::{
         HeaderValue, Page, Route, Slot,
         content::Form,
         error::{RouterErrorExt, not_found, see_other},
         header::RETRY_AFTER,
-        href, layout, page, path_param,
+        href, layout, page,
     },
     view::{Unescaped, View, component, view},
 };
 
 use crate::{
-    Username, clock,
+    clock,
     error::AppError,
-    http::{Password, check_password},
+    http::{check_password, password},
     player::Standing,
     store,
     store::Standings,
+    username,
 };
 
 /// Water.css palette overrides, inlined because they are a few kilobytes
 /// and inlining saves the request a separate stylesheet would cost.
 const STYLE: &str = include_str!("../style/main.css");
 
-#[layout("/")]
-pub async fn layout(slot: Slot<'_>) -> Result<impl View> {
+#[layout("/", with(Metadata::new().title("Challenge: Find the Password")))]
+pub async fn layout(cx: &Cx, slot: Slot<'_>) -> Result<impl View> {
     Ok(view! {
         <!DOCTYPE html>
         <html lang="en">
             <head>
-                <meta charset="utf-8">
-                <meta name="viewport" content="width=device-width, initial-scale=1">
-                <title>"Challenge: Find the Password"</title>
+                topcoat::metadata::tags()
                 <link
                     rel="stylesheet"
                     href="https://cdn.jsdelivr.net/npm/water.css@2/out/water.css"
@@ -67,7 +67,7 @@ pub struct ConfirmForm {
 }
 
 #[page("/")]
-pub async fn home() -> Result<impl View> {
+pub async fn home(cx: &Cx) -> Result<impl View> {
     Ok(view! { home_body() })
 }
 
@@ -75,7 +75,7 @@ pub async fn home() -> Result<impl View> {
 #[page(POST "/")]
 pub async fn join(cx: &Cx, Form(form): Form<JoinForm>) -> Result<impl View> {
     match store(cx).join(&form.username, clock(cx).now()) {
-        Ok(()) => Err(see_other(href!(player, Username(&form.username)).resolve(cx)).into()),
+        Ok(()) => Err(see_other(href!(player, username: &form.username).resolve(cx)).into()),
         Err(error) => Ok(view! {
             (error.status())
             home_body(error: Some(error), username: form.username)
@@ -87,7 +87,7 @@ pub async fn join(cx: &Cx, Form(form): Form<JoinForm>) -> Result<impl View> {
 #[page("/u/{username}")]
 pub async fn player(cx: &Cx) -> Result<impl View> {
     let standing = store(cx)
-        .standing(path_param::<Username>(cx))
+        .standing(username(cx))
         .ok_or_else(|| see_other(href!(home).resolve(cx)))?;
     Ok(view! { player_body(standing: standing) })
 }
@@ -96,15 +96,15 @@ pub async fn player(cx: &Cx) -> Result<impl View> {
 /// challenge.
 #[page(POST "/u/{username}")]
 pub async fn confirm(cx: &Cx, Form(form): Form<ConfirmForm>) -> Result<impl View> {
-    let username = path_param::<Username>(cx);
-    let error = match store(cx).confirm(username, &form.password, clock(cx).now()) {
+    let name = username(cx);
+    let error = match store(cx).confirm(name, &form.password, clock(cx).now()) {
         None => return Err(not_found().into()),
         Some(Ok(())) => {
-            return Err(see_other(href!(player, Username(username)).resolve(cx)).into());
+            return Err(see_other(href!(player, username: name).resolve(cx)).into());
         }
         Some(Err(error)) => error,
     };
-    let standing = store(cx).standing(username).ok_or_not_found()?;
+    let standing = store(cx).standing(name).ok_or_not_found()?;
     // Whole seconds, rounded up: retrying after a rounded-down wait would
     // still land inside the cooldown.
     let retry_after = match error {
@@ -136,7 +136,7 @@ fn format_time_to_solve(span: Span) -> String {
 }
 
 #[component]
-async fn error_message(error: Option<AppError>) -> Result<impl View> {
+async fn error_message(cx: &Cx, error: Option<AppError>) -> Result<impl View> {
     Ok(view! {
         if let Some(error) = error {
             <div class="error"><p>(error.to_string())</p></div>
@@ -150,6 +150,7 @@ async fn error_message(error: Option<AppError>) -> Result<impl View> {
 /// the name the player typed.
 #[component]
 async fn home_body(
+    cx: &Cx,
     #[default] error: Option<AppError>,
     #[default] username: String,
 ) -> Result<impl View> {
@@ -178,9 +179,9 @@ async fn home_body(
 async fn how_to_play(cx: &Cx) -> Result<impl View> {
     let base = base_url(cx);
     let check_template = base.join(Route::path(&check_password).as_str());
-    let check_example = href!(check_password, Username("john"), Password("asdf")).absolute();
+    let check_example = href!(check_password, username: "john", password: "asdf").absolute();
     let player_template = base.join(Page::path(&player).as_str());
-    let player_example = href!(player, Username("john")).absolute();
+    let player_example = href!(player, username: "john").absolute();
     Ok(view! {
         <h1 id="finding-the-password">"Finding the password"</h1>
         <p>
@@ -194,9 +195,7 @@ async fn how_to_play(cx: &Cx) -> Result<impl View> {
             </li>
             <li>
                 "Check if a password is the one I lost by checking this website with the target password in the URL following this template:"
-                <pre>
-                    <code>(check_template)</code>
-                </pre>
+                <pre><code>(check_template)</code></pre>
                 "where "
                 <code>"username"</code>
                 " is your username and "
@@ -279,7 +278,12 @@ async fn standings(cx: &Cx) -> Result<impl View> {
                 for standing in leaderboard {
                     <tr>
                         <td>(standing.username)</td>
-                        <td>(standing.time_to_solve.map(format_time_to_solve).unwrap_or_default())</td>
+                        <td>
+                            (standing
+                                .time_to_solve
+                                .map(format_time_to_solve)
+                                .unwrap_or_default())
+                        </td>
                         <td style="text-align: right;">
                             <code>(standing.attempts)</code>
                         </td>
@@ -301,7 +305,9 @@ async fn standings(cx: &Cx) -> Result<impl View> {
                 for standing in roster {
                     <tr>
                         <td>(standing.username)</td>
-                        <td>(if standing.time_to_solve.is_some() { "yes" } else { "no" })</td>
+                        <td>
+                            (if standing.time_to_solve.is_some() { "yes" } else { "no" })
+                        </td>
                         <td style="text-align: right;">
                             <code>(standing.attempts)</code>
                         </td>
@@ -315,7 +321,11 @@ async fn standings(cx: &Cx) -> Result<impl View> {
 /// A player's page: the password file download, then either the
 /// confirmation form or, once solved, how the solve went.
 #[component]
-async fn player_body(standing: Standing, #[default] error: Option<AppError>) -> Result<impl View> {
+async fn player_body(
+    cx: &Cx,
+    standing: Standing,
+    #[default] error: Option<AppError>,
+) -> Result<impl View> {
     Ok(view! {
         <h1 id="username">
             "Hi, "
@@ -327,7 +337,7 @@ async fn player_body(standing: Standing, #[default] error: Option<AppError>) -> 
         </p>
         <a
             class="button"
-            href=(href!(crate::http::passwords_txt, Username(&standing.username)))
+            href=(href!(crate::http::passwords_txt, username: &standing.username))
             download="passwords.txt"
         >
             "Get your passwords.txt"
@@ -353,7 +363,10 @@ async fn player_body(standing: Standing, #[default] error: Option<AppError>) -> 
                     ". To actually solve the challenge, enter the password you found below. Guesses here count as attempts too."
                 </p>
                 error_message(error: error)
-                <form method="post" action=(href!(confirm, Username(&standing.username)))>
+                <form
+                    method="post"
+                    action=(href!(confirm, username: &standing.username))
+                >
                     <input
                         type="text"
                         name="password"

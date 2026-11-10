@@ -18,9 +18,10 @@ rand = { version = "0.10.3", default-features = false, features = ["std_rng"] }
 serde = { version = "1.0.229", features = ["derive"] }
 thiserror = "2"
 tokio = { version = "1", features = ["macros", "net", "rt-multi-thread", "time"] }
-# Only what the app renders and serves; the default set adds assets, cookies,
-# sessions, fonts, icons, and the client runtime, none of which it uses.
-topcoat = { version = "0.10.0", default-features = false, features = ["compression", "serve"] }
+# Only what the app renders and serves. The default set also adds assets,
+# cookies, sessions, fonts, icons, the client runtime, and route discovery.
+# The app uses none of them, and it lists its routes by hand.
+topcoat = { version = "0.12.0", default-features = false, features = ["compression", "metadata", "serve"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
 

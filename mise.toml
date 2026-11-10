@@ -9,7 +9,7 @@
 node = "24"
 pnpm = "latest"
 # Keep in lockstep with the topcoat dependency in Cargo.toml.
-"cargo:topcoat-cli" = "0.10.0"
+"cargo:topcoat-cli" = "0.12.0"
 just = "latest"
 jactionlint = "latest"
 # jactionlint uses shellcheck to check the scripts of run steps.
