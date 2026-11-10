@@ -127,7 +127,7 @@ The restart recreates the container from whatever `:latest` points to locally, s
 
 ### Prerequisites
 
-The server is a plain Rust binary built on [Topcoat](https://github.com/tokio-rs/topcoat), so a Rust 1.98+ toolchain is all it needs.
+The server is a plain Rust binary built on [Topcoat](https://github.com/tokio-rs/topcoat), so a Rust 1.99+ toolchain is all it needs.
 For live reload while editing and for formatting `view!` macros, also install the Topcoat CLI:
 
 ```
