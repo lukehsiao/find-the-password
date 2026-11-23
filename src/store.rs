@@ -284,11 +284,7 @@ mod tests {
         assert_eq!(leaderboard.len(), 1);
         assert_eq!(leaderboard[0].username, name);
         assert_eq!(leaderboard[0].attempts, warmup + 1);
-        // Span has no PartialEq; compare as fixed-unit durations.
-        assert_eq!(
-            leaderboard[0].time_to_solve.unwrap().fieldwise(),
-            (solved - joined).fieldwise()
-        );
+        assert_eq!(leaderboard[0].time_to_solve, Some(solved - joined));
     }
 
     // The leaderboard lists exactly the players who solved, in solve order,

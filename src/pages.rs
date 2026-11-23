@@ -6,7 +6,7 @@
 //! with 303 See Other; a mistake re-renders the same page with the error
 //! message and a 4xx status.
 
-use jiff::{Span, SpanRound, Unit};
+use jiff::{SignedDuration, Span, SpanRound, Unit};
 use serde::Deserialize;
 use topcoat::{
     Result,
@@ -123,16 +123,18 @@ pub async fn confirm(cx: &Cx, Form(form): Form<ConfirmForm>) -> Result<impl View
 
 /// Round a solve duration for display: days at the largest, whole seconds
 /// at the smallest.
-fn format_time_to_solve(span: Span) -> String {
-    let rounded = span
-        .round(
-            SpanRound::new()
-                .largest(Unit::Day)
-                .smallest(Unit::Second)
-                .days_are_24_hours(),
-        )
-        .expect("solve durations fit well within Span rounding limits");
-    format!("{rounded:#}")
+fn format_time_to_solve(duration: SignedDuration) -> String {
+    Span::try_from(duration)
+        .and_then(|span| {
+            span.round(
+                SpanRound::new()
+                    .largest(Unit::Day)
+                    .smallest(Unit::Second)
+                    .days_are_24_hours(),
+            )
+        })
+        .expect("solve durations fit well within Span limits")
+        .to_friendly()
 }
 
 #[component]
@@ -385,10 +387,29 @@ mod tests {
     use jiff::SignedDuration;
     use topcoat::router::{StatusCode, header};
 
+    use super::format_time_to_solve;
     use crate::{
         player::CONFIRM_COOLDOWN,
         testing::{BASE_URL, TestApp, form, usernames},
     };
+
+    // Solve times balance up to whole days and round to whole seconds.
+    #[test]
+    fn solve_times_show_days_down_to_whole_seconds() {
+        assert_eq!(format_time_to_solve(SignedDuration::ZERO), "0s");
+        assert_eq!(
+            format_time_to_solve(SignedDuration::from_millis(89_400)),
+            "1m 29s"
+        );
+        assert_eq!(
+            format_time_to_solve(SignedDuration::from_millis(89_600)),
+            "1m 30s"
+        );
+        assert_eq!(
+            format_time_to_solve(SignedDuration::from_secs(2 * 86_400 + 3_661)),
+            "2d 1h 1m 1s"
+        );
+    }
 
     #[tokio::test]
     async fn joining_redirects_to_the_new_players_page() {

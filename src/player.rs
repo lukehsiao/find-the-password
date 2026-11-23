@@ -1,6 +1,6 @@
 use std::hash::{DefaultHasher, Hash, Hasher};
 
-use jiff::{SignedDuration, Span, Timestamp};
+use jiff::{SignedDuration, Timestamp};
 use rand::{RngExt, SeedableRng, distr::Alphanumeric, rngs::StdRng};
 
 use crate::error::AppError;
@@ -40,7 +40,7 @@ pub(crate) struct Player {
 pub struct Standing {
     pub username: String,
     pub attempts: u64,
-    pub time_to_solve: Option<Span>,
+    pub time_to_solve: Option<SignedDuration>,
 }
 
 /// A player's password file, ready to render.
@@ -328,11 +328,7 @@ mod tests {
         assert_eq!(player.confirm(&secret, solved_at), Ok(true));
         let standing = player.standing();
         assert_eq!(standing.attempts, checks + confirms + 1);
-        // Span has no PartialEq; compare as fixed-unit durations.
-        assert_eq!(
-            standing.time_to_solve.unwrap().fieldwise(),
-            (solved_at - joined).fieldwise()
-        );
+        assert_eq!(standing.time_to_solve, Some(solved_at - joined));
 
         // Checks and confirmations after solving report correctness but
         // never change the record, and the cooldown no longer applies.

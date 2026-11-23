@@ -1,10 +1,7 @@
 //! Helpers shared across the test modules: the in-process HTTP harness and
 //! the generators for the domain's inputs.
 
-use hegel::{
-    extras::jiff as jiff_gs,
-    generators::{self, PrintableGenerator},
-};
+use hegel::generators::{self, Generator, PrintableGenerator, temporal::Instant};
 use jiff::Timestamp;
 use topcoat::{
     context::BaseUrl,
@@ -25,10 +22,17 @@ pub(crate) fn usernames() -> impl PrintableGenerator<String> {
 /// Instants bound to 2000..2090, so the millisecond seed math and the
 /// solve-time offsets tests add can never overflow; the logic doesn't care
 /// about the era.
+///
+/// The draw goes through hegel's own instant type, not its jiff extra. That
+/// extra is built on a different major version of jiff, so its timestamps
+/// are a different type from the ones the challenge uses.
 pub(crate) fn timestamps() -> impl PrintableGenerator<Timestamp> {
-    let min = Timestamp::from_second(946_684_800).unwrap();
-    let max = Timestamp::from_second(3_786_825_600).unwrap();
-    jiff_gs::timestamps().min_value(min).max_value(max)
+    generators::temporal::instants()
+        .min_value(Instant::new(946_684_800, 0))
+        .max_value(Instant::new(3_786_825_600, 0))
+        .map(|Instant { second, nanosecond }| {
+            Timestamp::new(second, i32::try_from(nanosecond).unwrap()).unwrap()
+        })
 }
 
 /// A guaranteed-wrong guess: longer than any 32-character secret.
