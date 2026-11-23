@@ -279,10 +279,7 @@ async fn standings(cx: &Cx) -> Result<impl View> {
                     <tr>
                         <td>(standing.username)</td>
                         <td>
-                            (standing
-                                .time_to_solve
-                                .map(format_time_to_solve)
-                                .unwrap_or_default())
+                            (standing.time_to_solve.map_or_default(format_time_to_solve))
                         </td>
                         <td style="text-align: right;">
                             <code>(standing.attempts)</code>
