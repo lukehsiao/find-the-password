@@ -7,7 +7,7 @@ description = "A brute-force challenge to introduce computer automation to kids.
 repository = "https://github.com/lukehsiao/find-the-password"
 license = "BlueOak-1.0.0"
 publish = false
-rust-version = "1.99"
+rust-version = "1.100"
 
 [dependencies]
 dashmap = "6.2.1"

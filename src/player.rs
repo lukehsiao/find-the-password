@@ -211,15 +211,13 @@ mod tests {
         let player = player(&tc);
 
         let mut rng = StdRng::seed_from_u64(player.seed);
-        let mut reference: Vec<String> = (0..NUM_PASSWORDS)
-            .map(|_| {
-                (&mut rng)
-                    .sample_iter(&Alphanumeric)
-                    .take(PASS_LEN)
-                    .map(char::from)
-                    .collect()
-            })
-            .collect();
+        let mut reference: Vec<String> = Vec::from_fn(NUM_PASSWORDS, |_| {
+            (&mut rng)
+                .sample_iter(&Alphanumeric)
+                .take(PASS_LEN)
+                .map(char::from)
+                .collect()
+        });
         #[expect(
             clippy::cast_possible_truncation,
             reason = "the modulo result is below NUM_PASSWORDS - OFFSET"

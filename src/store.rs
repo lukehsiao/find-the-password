@@ -326,8 +326,8 @@ mod tests {
     fn roster_lists_every_player(tc: hegel::TestCase) {
         let store = ChallengeStore::new();
         let now = tc.draw(timestamps());
-        let count = tc.draw(generators::integers::<u64>().max_value(20));
-        let names: Vec<String> = (0..count).map(|i| format!("player{i}")).collect();
+        let count = tc.draw(generators::integers::<usize>().max_value(20));
+        let names = Vec::from_fn(count, |i| format!("player{i}"));
         for name in &names {
             store.join(name, now).unwrap();
         }
@@ -417,9 +417,8 @@ mod tests {
         let racers = 64;
 
         let wins = std::thread::scope(|scope| {
-            let handles: Vec<_> = (0..racers)
-                .map(|_| scope.spawn(|| store.join("racer", now).is_ok()))
-                .collect();
+            let handles =
+                Vec::from_fn(racers, |_| scope.spawn(|| store.join("racer", now).is_ok()));
             handles
                 .into_iter()
                 .map(|h| h.join().unwrap())
@@ -496,13 +495,13 @@ mod tests {
         let store = ChallengeStore::new();
         let now = Timestamp::UNIX_EPOCH;
         store.join("racer", now).unwrap();
-        let racers: u64 = 16;
+        let racers = 16;
 
         let store_ref = &store;
         let outcomes = std::thread::scope(|scope| {
-            let handles: Vec<_> = (0..racers)
-                .map(|_| scope.spawn(move || store_ref.confirm("racer", "wrong", now)))
-                .collect();
+            let handles = Vec::from_fn(racers, |_| {
+                scope.spawn(move || store_ref.confirm("racer", "wrong", now))
+            });
             handles
                 .into_iter()
                 .map(|h| h.join().unwrap())
@@ -518,7 +517,7 @@ mod tests {
             .filter(|o| matches!(o, Some(Err(AppError::ConfirmThrottled { .. }))))
             .count();
         assert_eq!(incorrect, 1, "exactly one submission is evaluated");
-        assert_eq!(throttled, usize::try_from(racers).unwrap() - 1);
+        assert_eq!(throttled, racers - 1);
         assert_eq!(store.standing("racer").unwrap().attempts, 1);
     }
 
