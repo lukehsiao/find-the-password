@@ -47,6 +47,11 @@ pedantic = { level = "warn", priority = -1 }
 # on each is noise, not a bug filter.
 must_use_candidate = "allow"
 
+[lints.cargo]
+# Deny, not warn. Cargo emits these lints itself, so the `-D warnings` that
+# `just check` passes to clippy does not reach them.
+pedantic = { level = "deny", priority = -1 }
+
 # Cross-crate inlining for the server binary; the request path spends its
 # time in hyper and the topcoat router, not this crate, so LTO is where that
 # shows up. Costs release-build time.
